@@ -108,40 +108,40 @@ export class ActivityTracker
     }
   }
 
-public getTodayStats(): DailyStats {
-  const date =
-    this.getLocalDateKey();
+  public getTodayStats(): DailyStats {
+    const date =
+      this.getLocalDateKey();
 
-  return (
-    this.state.daily[date] ??
-    createEmptyDailyStats(
-      date,
-    )
-  );
-}
+    return (
+      this.state.daily[date] ??
+      createEmptyDailyStats(
+        date,
+      )
+    );
+  }
 
-public getDailyHistory():
-  readonly DailyStats[] {
-  return Object.values(
-    this.state.daily,
-  ).map(
-    (day) => ({
-      ...day,
+  public getDailyHistory():
+    readonly DailyStats[] {
+    return Object.values(
+      this.state.daily,
+    ).map(
+      (day) => ({
+        ...day,
 
-      projects: {
-        ...day.projects,
-      },
+        projects: {
+          ...day.projects,
+        },
 
-      languages: {
-        ...day.languages,
-      },
+        languages: {
+          ...day.languages,
+        },
 
-      files: {
-        ...day.files,
-      },
-    }),
-  );
-}
+        files: {
+          ...day.files,
+        },
+      }),
+    );
+  }
 
   public getCurrentContext(): ActivityContext {
     return {
@@ -180,7 +180,9 @@ public getDailyHistory():
   }
 
   public async flush(): Promise<void> {
-    if (!this.dirty) {
+    if (
+      !this.dirty
+    ) {
       return;
     }
 
@@ -188,24 +190,32 @@ public getDailyHistory():
       this.state,
     );
 
-    this.dirty = false;
+    this.dirty =
+      false;
   }
 
-  public async disposeAsync(): Promise<void> {
-    if (this.disposed) {
+  public async disposeAsync():
+    Promise<void> {
+    if (
+      this.disposed
+    ) {
       return;
     }
 
     this.disposed =
       true;
 
-    if (this.tickTimer) {
+    if (
+      this.tickTimer
+    ) {
       clearInterval(
         this.tickTimer,
       );
     }
 
-    if (this.saveTimer) {
+    if (
+      this.saveTimer
+    ) {
       clearInterval(
         this.saveTimer,
       );
@@ -253,11 +263,13 @@ public getDailyHistory():
     void this.disposeAsync();
   }
 
-  private registerActivityListeners(): void {
+  private registerActivityListeners():
+    void {
     this.disposables.push(
       vscode.window.onDidChangeActiveTextEditor(
         () => {
           this.refreshContext();
+
           this.markActivity();
         },
       ),
@@ -265,6 +277,7 @@ public getDailyHistory():
       vscode.window.onDidChangeTextEditorSelection(
         () => {
           this.refreshContext();
+
           this.markActivity();
         },
       ),
@@ -278,6 +291,7 @@ public getDailyHistory():
             event.document
           ) {
             this.refreshContext();
+
             this.markActivity();
           }
         },
@@ -292,6 +306,7 @@ public getDailyHistory():
             document
           ) {
             this.refreshContext();
+
             this.markActivity();
           }
         },
@@ -306,6 +321,7 @@ public getDailyHistory():
             document
           ) {
             this.refreshContext();
+
             this.markActivity();
           }
         },
@@ -337,7 +353,9 @@ public getDailyHistory():
         this.lastActivityAt >=
         this.getIdleTimeoutMilliseconds();
 
-    if (wasIdle) {
+    if (
+      wasIdle
+    ) {
       /*
        * Finish accounting for the previous
        * active period before beginning a new
@@ -370,8 +388,8 @@ public getDailyHistory():
 
     this.sessionManager
       .markActivity(
-      now,
-  );
+        now,
+      );
 
     this.onDidUpdateEmitter.fire();
   }
@@ -424,7 +442,8 @@ public getDailyHistory():
     }
 
     if (
-      now >= activityCutoff &&
+      now >=
+        activityCutoff &&
       this.sessionManager
         .getCurrentSession()
     ) {
@@ -503,6 +522,7 @@ public getDailyHistory():
       .recordActiveTime(
         milliseconds,
         activeUntil,
+        context,
       );
 
     this.dirty =
@@ -521,7 +541,8 @@ public getDailyHistory():
   ): void {
     const current =
       collection[key] ?? {
-        activeMilliseconds: 0,
+        activeMilliseconds:
+          0,
       };
 
     current.activeMilliseconds +=
@@ -548,7 +569,8 @@ public getDailyHistory():
     );
   }
 
-  private getIdleTimeoutMilliseconds(): number {
+  private getIdleTimeoutMilliseconds():
+    number {
     const configuration =
       vscode.workspace.getConfiguration(
         "waddleTracker",
