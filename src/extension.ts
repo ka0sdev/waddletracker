@@ -1,5 +1,7 @@
 import * as vscode from "vscode";
 
+import { SessionHistoryService } from "./sessions/SessionHistoryService";
+
 import { JsonStorageProvider } from "./storage/JsonStorageProvider";
 
 import { StatisticsService } from "./statistics/StatisticsService";
@@ -7,8 +9,9 @@ import { StatisticsService } from "./statistics/StatisticsService";
 import { ActivityTracker } from "./tracking/ActivityTracker";
 import { ContextResolver } from "./tracking/ContextResolver";
 
+import { CurrentActivityProvider } from "./ui/CurrentActivityProvider";
+import { SessionHistoryTreeProvider } from "./ui/SessionHistoryTreeProvider";
 import { StatisticsDashboardProvider } from "./ui/StatisticsDashboardProvider";
-import { StatisticsTreeProvider } from "./ui/StatisticsTreeProvider";
 import { StatusBarController } from "./ui/StatusBarController";
 
 import {
@@ -19,7 +22,8 @@ let activityTracker:
   ActivityTracker | undefined;
 
 export async function activate(
-  context: vscode.ExtensionContext,
+  context:
+    vscode.ExtensionContext,
 ): Promise<void> {
   const storage =
     new JsonStorageProvider(
@@ -37,6 +41,9 @@ export async function activate(
   const statisticsService =
     new StatisticsService();
 
+  const sessionHistoryService =
+    new SessionHistoryService();
+
   activityTracker =
     new ActivityTracker(
       storage,
@@ -49,17 +56,32 @@ export async function activate(
       activityTracker,
     );
 
-  const statisticsProvider =
-    new StatisticsTreeProvider(
+  const currentActivityProvider =
+    new CurrentActivityProvider(
       activityTracker,
     );
 
-  const statisticsView =
+  const currentActivityRegistration =
+    vscode.window
+      .registerWebviewViewProvider(
+        CurrentActivityProvider
+          .viewType,
+
+        currentActivityProvider,
+      );
+
+  const sessionHistoryProvider =
+    new SessionHistoryTreeProvider(
+      activityTracker,
+      sessionHistoryService,
+    );
+
+  const sessionHistoryView =
     vscode.window.createTreeView(
-      "waddletracker.statistics",
+      "waddletracker.sessionHistory",
       {
         treeDataProvider:
-          statisticsProvider,
+          sessionHistoryProvider,
 
         showCollapseAll:
           true,
@@ -85,7 +107,9 @@ export async function activate(
     vscode.commands.registerCommand(
       "waddletracker.showStatus",
       async () => {
-        if (!activityTracker) {
+        if (
+          !activityTracker
+        ) {
           return;
         }
 
@@ -110,7 +134,9 @@ export async function activate(
 
         const details = [
           "WaddleTracker",
+
           `Today: ${duration}`,
+
           `Status: ${activityState}`,
         ];
 
@@ -165,18 +191,27 @@ export async function activate(
     vscode.commands.registerCommand(
       "waddletracker.refreshStatistics",
       async () => {
-        statisticsProvider.refresh();
+        await currentActivityProvider
+          .refresh();
 
-        await dashboardProvider.refresh();
+        sessionHistoryProvider
+          .refresh();
+
+        await dashboardProvider
+          .refresh();
       },
     );
 
   context.subscriptions.push(
     activityTracker,
+
     statusBar,
 
-    statisticsProvider,
-    statisticsView,
+    currentActivityProvider,
+    currentActivityRegistration,
+
+    sessionHistoryProvider,
+    sessionHistoryView,
 
     dashboardProvider,
     dashboardRegistration,
@@ -195,7 +230,9 @@ export async function activate(
 
 export async function deactivate():
   Promise<void> {
-  if (!activityTracker) {
+  if (
+    !activityTracker
+  ) {
     return;
   }
 
