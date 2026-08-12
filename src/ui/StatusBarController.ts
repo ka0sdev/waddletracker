@@ -2,6 +2,10 @@ import * as vscode from "vscode";
 
 import { ActivityTracker } from "../tracking/ActivityTracker";
 
+type StatusBarDisplayMode =
+  | "today"
+  | "project";
+
 export class StatusBarController
   implements vscode.Disposable
 {
@@ -24,9 +28,6 @@ export class StatusBarController
     this.item.command =
       "waddletracker.showStatus";
 
-    this.item.tooltip =
-      "WaddleTracker — today's coding activity";
-
     this.disposables.push(
       this.tracker.onDidUpdate(
         () => {
@@ -38,7 +39,7 @@ export class StatusBarController
         (event) => {
           if (
             event.affectsConfiguration(
-              "waddleTracker.statusBar",
+              "waddleTracker",
             )
           ) {
             this.update();
@@ -64,19 +65,69 @@ export class StatusBarController
 
     if (!enabled) {
       this.item.hide();
+
       return;
     }
 
+    const displayMode =
+      configuration.get<StatusBarDisplayMode>(
+        "statusBar.display",
+        "today",
+      );
+
     const stats =
       this.tracker.getTodayStats();
+
+    const currentContext =
+      this.tracker.getCurrentContext();
 
     const formatted =
       this.formatDuration(
         stats.activeMilliseconds,
       );
 
-    this.item.text =
-      `$(clock) ${formatted}`;
+    if (
+      displayMode === "project" &&
+      currentContext.projectName
+    ) {
+      this.item.text =
+        `$(clock) ${formatted} • ${currentContext.projectName}`;
+    } else {
+      this.item.text =
+        `$(clock) ${formatted}`;
+    }
+
+    const state =
+      this.tracker.isActive()
+        ? "Active"
+        : "Idle";
+
+    const tooltipParts = [
+      `WaddleTracker`,
+      `Today: ${formatted}`,
+      `Status: ${state}`,
+    ];
+
+    if (
+      currentContext.projectName
+    ) {
+      tooltipParts.push(
+        `Project: ${currentContext.projectName}`,
+      );
+    }
+
+    if (
+      currentContext.languageId
+    ) {
+      tooltipParts.push(
+        `Language: ${currentContext.languageId}`,
+      );
+    }
+
+    this.item.tooltip =
+      tooltipParts.join(
+        "\n",
+      );
 
     this.item.show();
   }
@@ -95,41 +146,70 @@ export class StatusBarController
   private formatDuration(
     milliseconds: number,
   ): string {
-    const totalSeconds = Math.floor(
-      milliseconds / 1000,
-    );
+    const totalSeconds =
+      Math.floor(
+        milliseconds /
+          1000,
+      );
 
-    const hours = Math.floor(
-      totalSeconds / 3600,
-    );
+    const hours =
+      Math.floor(
+        totalSeconds /
+          3600,
+      );
 
-    const minutes = Math.floor(
-      (totalSeconds % 3600) / 60,
-    );
+    const minutes =
+      Math.floor(
+        (
+          totalSeconds %
+          3600
+        ) /
+          60,
+      );
 
     const seconds =
-      totalSeconds % 60;
+      totalSeconds %
+      60;
 
-    if (hours > 0) {
+    if (
+      hours > 0
+    ) {
       return [
-        String(hours),
-        String(minutes).padStart(
+        String(
+          hours,
+        ),
+
+        String(
+          minutes,
+        ).padStart(
           2,
           "0",
         ),
-        String(seconds).padStart(
+
+        String(
+          seconds,
+        ).padStart(
           2,
           "0",
         ),
-      ].join(":");
+      ].join(
+        ":",
+      );
     }
 
     return [
-      String(minutes),
-      String(seconds).padStart(
+      String(
+        minutes,
+      ),
+
+      String(
+        seconds,
+      ).padStart(
         2,
         "0",
       ),
-    ].join(":");
+    ].join(
+      ":",
+    );
   }
 }
