@@ -4,6 +4,7 @@ import * as path from "node:path";
 import {
   createEmptyDailyStats,
   createEmptyTrackerState,
+  DailyStats,
   TrackerState,
 } from "../types/TrackerState";
 
@@ -20,6 +21,15 @@ interface LegacyTrackerStateV1 {
   daily: Record<
     string,
     LegacyDailyStatsV1
+  >;
+}
+
+interface LegacyTrackerStateV2 {
+  version: 2;
+
+  daily: Record<
+    string,
+    DailyStats
   >;
 }
 
@@ -128,14 +138,28 @@ export class JsonStorageProvider
       value as {
         version?: unknown;
         daily?: unknown;
+        sessions?: unknown;
       };
+
+    if (
+      candidate.version === 3 &&
+      candidate.daily &&
+      typeof candidate.daily === "object" &&
+      Array.isArray(
+        candidate.sessions,
+      )
+    ) {
+      return value as TrackerState;
+    }
 
     if (
       candidate.version === 2 &&
       candidate.daily &&
       typeof candidate.daily === "object"
     ) {
-      return value as TrackerState;
+      return this.migrateV2(
+        value as LegacyTrackerStateV2,
+      );
     }
 
     if (
@@ -153,6 +177,19 @@ export class JsonStorageProvider
     );
   }
 
+  private migrateV2(
+    legacy: LegacyTrackerStateV2,
+  ): TrackerState {
+    return {
+      version: 3,
+
+      daily:
+        legacy.daily,
+
+      sessions: [],
+    };
+  }
+
   private migrateV1(
     legacy: LegacyTrackerStateV1,
   ): TrackerState {
@@ -160,7 +197,10 @@ export class JsonStorageProvider
       createEmptyTrackerState();
 
     for (
-      const [date, legacyStats]
+      const [
+        date,
+        legacyStats,
+      ]
       of Object.entries(
         legacy.daily,
       )
