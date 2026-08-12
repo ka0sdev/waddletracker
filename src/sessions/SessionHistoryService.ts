@@ -46,9 +46,11 @@ export class SessionHistoryService {
           date,
         ) ?? [];
 
-      existing.push({
-        ...session,
-      });
+      existing.push(
+        this.cloneSession(
+          session,
+        ),
+      );
 
       groups.set(
         date,
@@ -70,7 +72,10 @@ export class SessionHistoryService {
       )
       .map(
         (
-          [date, groupedSessions],
+          [
+            date,
+            groupedSessions,
+          ],
         ): SessionHistoryGroup => ({
           date,
 
@@ -91,8 +96,26 @@ export class SessionHistoryService {
       );
   }
 
+  private cloneSession(
+    session:
+      CodingSession,
+  ): CodingSession {
+    return {
+      ...session,
+
+      languages: {
+        ...session.languages,
+      },
+
+      files: {
+        ...session.files,
+      },
+    };
+  }
+
   private getLocalDateKey(
-    date: Date,
+    date:
+      Date,
   ): string {
     const year =
       date.getFullYear();
