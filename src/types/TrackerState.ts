@@ -26,7 +26,7 @@ export interface DailyStats {
 }
 
 export interface TrackerState {
-  version: 3;
+  version: 4;
 
   daily: Record<
     string,
@@ -52,7 +52,7 @@ export function createEmptyDailyStats(
 
 export function createEmptyTrackerState(): TrackerState {
   return {
-    version: 3,
+    version: 4,
 
     daily: {},
 
