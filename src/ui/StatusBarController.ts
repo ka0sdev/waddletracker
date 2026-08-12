@@ -4,7 +4,8 @@ import { ActivityTracker } from "../tracking/ActivityTracker";
 
 type StatusBarDisplayMode =
   | "today"
-  | "project";
+  | "project"
+  | "session";
 
 export class StatusBarController
   implements vscode.Disposable
@@ -81,20 +82,47 @@ export class StatusBarController
     const currentContext =
       this.tracker.getCurrentContext();
 
-    const formatted =
+    const currentSession =
+      this.tracker.getCurrentSession();
+
+    const todayFormatted =
       this.formatDuration(
         stats.activeMilliseconds,
       );
 
-    if (
-      displayMode === "project" &&
-      currentContext.projectName
-    ) {
-      this.item.text =
-        `$(clock) ${formatted} • ${currentContext.projectName}`;
-    } else {
-      this.item.text =
-        `$(clock) ${formatted}`;
+    const sessionFormatted =
+      this.formatDuration(
+        currentSession
+          ?.activeMilliseconds ??
+          0,
+      );
+
+    switch (displayMode) {
+      case "project":
+        if (
+          currentContext.projectName
+        ) {
+          this.item.text =
+            `$(clock) ${todayFormatted} • ${currentContext.projectName}`;
+        } else {
+          this.item.text =
+            `$(clock) ${todayFormatted}`;
+        }
+
+        break;
+
+      case "session":
+        this.item.text =
+          `$(clock) ${sessionFormatted}`;
+
+        break;
+
+      case "today":
+      default:
+        this.item.text =
+          `$(clock) ${todayFormatted}`;
+
+        break;
     }
 
     const state =
@@ -103,10 +131,16 @@ export class StatusBarController
         : "Idle";
 
     const tooltipParts = [
-      `WaddleTracker`,
-      `Today: ${formatted}`,
+      "WaddleTracker",
+      `Today: ${todayFormatted}`,
       `Status: ${state}`,
     ];
+
+    if (currentSession) {
+      tooltipParts.push(
+        `Current session: ${sessionFormatted}`,
+      );
+    }
 
     if (
       currentContext.projectName
