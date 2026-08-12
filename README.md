@@ -2,11 +2,11 @@
 
 **Local-first developer activity tracking for Visual Studio Code.**
 
-WaddleTracker is a developer activity tracker built directly into VS Code. It measures active coding time and the context around it — projects, files, languages, workspaces, and coding sessions — while keeping local tracking useful without requiring an account, cloud service, or external backend.
+WaddleTracker is a privacy-focused developer activity tracker built directly into VS Code. It measures active coding time and the development context around it — projects, files, languages, workspaces, remote environments, and coding sessions — while keeping the collected data local and useful without requiring an account, cloud service, or external backend.
 
-The goal is not simply to measure how long VS Code has been open. WaddleTracker reacts to actual editor activity, detects idle periods, and builds a more accurate picture of how development time is spent.
+The goal is not simply to measure how long VS Code has been open. WaddleTracker reacts to actual editor activity, detects idle periods, groups work into coding sessions, and builds a more useful picture of how development time is spent.
 
-> **Status:** WaddleTracker is currently in early development.
+> **Status:** WaddleTracker is currently under active development.
 
 ---
 
@@ -14,43 +14,94 @@ The goal is not simply to measure how long VS Code has been open. WaddleTracker 
 
 ### Available
 
-* Active coding-time tracking
-* Configurable idle detection
-* Automatic pause when idle
-* Project and workspace detection
-* File tracking
-* Language tracking
-* VS Code Remote environment awareness
-* Persistent local statistics
-* Status bar activity timer
-* Configurable status bar display
-* Native WaddleTracker settings inside VS Code
-* Local storage schema migration support
+#### Activity tracking
+
+- Active coding-time tracking
+- Configurable idle detection
+- Automatic pause when idle
+- Automatic resume when activity returns
+- Project and workspace detection
+- File tracking
+- Language tracking
+- VS Code Remote environment awareness
+- Persistent local statistics
+
+#### Coding sessions
+
+- Automatic coding-session creation
+- Session lifecycle management
+- Automatic session closure after idle periods
+- Session recovery after interrupted extension shutdowns
+- Grouped session history by date
+- Session duration and start/end information
+- Per-session language tracking
+- Per-session file tracking
+- Language and file breakdowns for individual sessions
+- Direct file opening from session history
+
+#### Statistics
+
+- Today statistics
+- Last 7 days statistics
+- Last 30 days statistics
+- All-time statistics
+- Total coding time
+- Active-day counts
+- Daily coding average
+- Best coding day
+- Current coding streak
+- Longest coding streak
+- Daily activity charts
+- Project activity breakdowns
+- Language activity breakdowns
+- File activity breakdowns
+- 365-day contribution-style activity heatmap
+
+#### VS Code interface
+
+- Dedicated WaddleTracker Activity Bar container
+- Live Current Activity dashboard
+- Current project card
+- Active/idle status
+- Current-session timer
+- Today's coding time
+- Current language
+- Session History Tree View
+- Statistics Dashboard
+- Responsive VS Code-native card layouts
+- Configurable status bar timer
+- Native VS Code Settings integration
+- Manual statistics refresh
+
+#### Storage
+
+- Local JSON persistence
+- Versioned tracker-state schema
+- Automatic storage migrations
+- Abstract storage-provider architecture
 
 ### Planned
 
-* Coding sessions and session history
-* Daily, weekly, monthly, and all-time statistics
-* Project activity breakdowns
-* Language activity breakdowns
-* File activity statistics
-* Activity timelines
-* Coding streaks
-* Contribution-style activity heatmaps
-* Dedicated WaddleTracker sidebar
-* Advanced statistics dashboard
-* SQLite local storage
-* Data export and import
-* Optional synchronization
-* Self-hosted WaddleTracker API
-* PostgreSQL and MySQL-backed remote storage
-* Multi-device statistics
+- Project, file, and language exclusion rules
+- Privacy controls for tracked paths and project names
+- Configurable data retention
+- SQLite local storage
+- Data export
+- Data import
+- Optional synchronization
+- Self-hosted WaddleTracker API
+- Multi-device statistics
+- PostgreSQL-backed remote storage
+- MySQL-backed remote storage
+- Companion web application
+- Deeper cross-device analytics
+- Optional public developer statistics and portfolio integrations
 
 ---
 
 ## Local-first by design
 
-WaddleTracker is designed to work without an external service.
+WaddleTracker is designed to remain useful without an external service.
 
 ```text
 VS Code
@@ -64,7 +115,9 @@ Local Storage
 
 Tracking data stays local by default.
 
-Future synchronization will be optional and separated from the core tracker:
+No account, hosted service, or subscription is required for the core tracking experience.
+
+Future synchronization will remain optional and separated from the local tracker:
 
 ```text
 VS Code
@@ -83,25 +136,25 @@ WaddleTracker
    PostgreSQL / MySQL
 ```
 
-The extension itself will not require direct database access or expose database credentials.
+The VS Code extension will not connect directly to a remote database or require database credentials.
 
 ---
 
 ## Activity tracking
 
-WaddleTracker does not count the entire time VS Code is running as development time.
+WaddleTracker does not treat the entire time VS Code is open as development time.
 
-Instead, editor activity is used to determine whether a developer is active.
+Instead, editor activity determines whether the developer is considered active.
 
-Examples of activity signals include:
+Activity signals currently include:
 
-* Editing a document
-* Changing the active editor
-* Moving the editor selection
-* Saving a document
-* Opening a document
+- Editing a document
+- Changing the active editor
+- Moving the editor selection
+- Saving a document
+- Opening a document
 
-When no activity occurs for the configured idle period, WaddleTracker stops accumulating active time.
+The tracking lifecycle is approximately:
 
 ```text
 Editor activity
@@ -110,10 +163,16 @@ Editor activity
 Activity detected
       │
       ▼
+Coding session active
+      │
+      ▼
 Active time accumulated
       │
       ▼
 Idle timeout reached
+      │
+      ▼
+Session closed
       │
       ▼
 Tracking paused
@@ -122,16 +181,16 @@ Tracking paused
 New activity
       │
       ▼
-Tracking resumes
+New session created
 ```
 
-The default idle timeout is **5 minutes** and can be changed through the WaddleTracker settings.
+The default idle timeout is **5 minutes** and can be changed through the native WaddleTracker settings.
 
 ---
 
 ## Context tracking
 
-WaddleTracker associates activity with development context rather than storing only a single timer.
+WaddleTracker associates tracked time with development context rather than storing only a single timer.
 
 Currently tracked context includes:
 
@@ -144,19 +203,166 @@ Activity
 └── Remote environment
 ```
 
-This forms the foundation for statistics such as:
+This context is aggregated into daily statistics:
 
 ```text
 Today
-├── TypeScript       2h 14m
-├── JavaScript         48m
-└── Markdown           17m
-
-Projects
-├── WaddleTracker    1h 32m
-├── RelioMap           59m
-└── ka0s.dev           48m
+├── Projects
+│   ├── WaddleTracker
+│   └── ka0s.dev
+│
+├── Languages
+│   ├── TypeScript
+│   ├── JSON
+│   └── Markdown
+│
+└── Files
+    ├── ActivityTracker.ts
+    ├── SessionManager.ts
+    └── README.md
 ```
+
+It is also recorded against individual coding sessions:
+
+```text
+Coding Session
+├── Project
+├── Workspace
+├── Remote environment
+├── Active time
+├── Languages
+│   ├── TypeScript
+│   └── JSON
+└── Files
+    ├── ActivityTracker.ts
+    └── SessionManager.ts
+```
+
+This allows WaddleTracker to answer both:
+
+```text
+How did I spend my time today?
+```
+
+and:
+
+```text
+What did I work on during this specific session?
+```
+
+---
+
+## Current Activity
+
+WaddleTracker provides a compact live dashboard directly in the Activity Bar.
+
+```text
+┌─────────────────────────────────┐
+│ PROJECT                         │
+│ WaddleTracker                   │
+└─────────────────────────────────┘
+
+┌───────────────┐ ┌───────────────┐
+│ STATUS        │ │ CURRENT       │
+│ Active        │ │ SESSION       │
+│               │ │ 24m 18s       │
+└───────────────┘ └───────────────┘
+
+┌───────────────┐ ┌───────────────┐
+│ TODAY         │ │ LANGUAGE      │
+│ 2h 47m        │ │ TypeScript    │
+└───────────────┘ └───────────────┘
+```
+
+The view updates while coding without rebuilding the complete Webview.
+
+---
+
+## Session History
+
+Coding sessions are grouped chronologically by date:
+
+```text
+SESSION HISTORY
+
+▼ Today
+    ▸ WaddleTracker          58m
+    ▸ ka0s.dev               25m
+
+▼ Yesterday
+    ▸ RelioMap             1h 12m
+```
+
+Sessions recorded with the current storage schema can be expanded further:
+
+```text
+▼ WaddleTracker              58m
+    ▼ Languages
+        TypeScript       46m • 79%
+        JSON              8m • 14%
+        Markdown          4m • 7%
+
+    ▼ Files
+        ActivityTracker.ts    24m • 41%
+        SessionManager.ts     18m • 31%
+        package.json           8m • 14%
+```
+
+Tracked files can be opened directly from the Session History view.
+
+Older sessions created before detailed session dimensions were introduced remain available but naturally cannot contain file/language history that was not originally recorded.
+
+---
+
+## Statistics Dashboard
+
+The Statistics Dashboard provides historical analytics directly inside VS Code.
+
+Available ranges:
+
+```text
+Today
+7 Days
+30 Days
+All
+```
+
+The summary includes:
+
+```text
+┌───────────────┐ ┌───────────────┐
+│ CODING TIME   │ │ ACTIVE DAYS   │
+│ 3h 42m        │ │ 2             │
+└───────────────┘ └───────────────┘
+
+┌───────────────┐ ┌───────────────┐
+│ DAILY AVERAGE │ │ BEST DAY      │
+│ 1h 51m        │ │ 2h 34m        │
+└───────────────┘ └───────────────┘
+
+┌───────────────┐ ┌───────────────┐
+│ CURRENT       │ │ LONGEST       │
+│ STREAK        │ │ STREAK        │
+│ 2 days        │ │ 5 days        │
+└───────────────┘ └───────────────┘
+```
+
+The dashboard also provides:
+
+- Daily activity visualization
+- Project breakdowns
+- Language breakdowns
+- File breakdowns
+- Percentage distribution
+- Clickable tracked files
+- Current streak
+- Longest streak
+- Best coding day
+- 365-day coding activity heatmap
+- Hover details
+- Persistent range and breakdown selections
+
+The heatmap intentionally represents the latest **365 days**, independently of the currently selected statistics range.
 
 ---
 
@@ -176,8 +382,6 @@ and run:
 WaddleTracker: Open Settings
 ```
 
-Current configuration includes:
-
 ### Idle Timeout
 
 Controls how long WaddleTracker continues considering the developer active after the last editor interaction.
@@ -188,45 +392,88 @@ Default:
 5 minutes
 ```
 
+Valid range:
+
+```text
+1–60 minutes
+```
+
 ### Status Bar
 
 The WaddleTracker status bar indicator can be enabled or disabled.
 
-The display mode can currently show:
+Available display modes are:
 
-* Today's tracked time
-* Today's tracked time with the current project
+```text
+today
+project
+session
+```
 
-Example:
+#### Today
+
+Displays today's tracked coding time:
 
 ```text
 ◷ 1:24:18
 ```
 
-or:
+#### Project
+
+Displays today's tracked time together with the current project:
 
 ```text
 ◷ 1:24:18 • waddletracker
 ```
 
+#### Session
+
+Displays active coding time for the current coding session.
+
 ---
 
 ## Commands
 
-WaddleTracker currently contributes the following VS Code commands:
+WaddleTracker currently contributes:
 
 ```text
 WaddleTracker: Show Status
 WaddleTracker: Open Settings
+WaddleTracker: Refresh
 ```
 
-They can be accessed through the Command Palette.
+The refresh command updates:
+
+```text
+Current Activity
+Session History
+Statistics Dashboard
+```
+
+Commands can be accessed through the Command Palette, while refresh and settings controls are also exposed in the WaddleTracker views.
 
 ---
 
 ## Storage
 
 WaddleTracker currently uses local JSON persistence stored inside VS Code's extension-specific global storage directory.
+
+The tracker state contains:
+
+```text
+TrackerState
+├── Daily statistics
+│   ├── Active time
+│   ├── Projects
+│   ├── Languages
+│   └── Files
+│
+└── Coding sessions
+    ├── Session metadata
+    ├── Active time
+    ├── Languages
+    └── Files
+```
 
 The storage layer is abstracted behind a provider interface:
 
@@ -236,15 +483,85 @@ ActivityTracker
       ▼
 StorageProvider
       │
-      ├── JSON
-      ├── SQLite
-      ├── API
+      ├── JsonStorageProvider
+      ├── SQLite          planned
+      ├── API             planned
       └── Future providers
 ```
 
-This allows WaddleTracker to move from JSON to SQLite later without coupling the tracking engine to a specific storage implementation.
+Storage schemas are versioned and migrated automatically as WaddleTracker evolves.
 
-Remote database support will eventually be handled through a WaddleTracker API rather than connecting the VS Code extension directly to PostgreSQL or MySQL.
+This allows the tracker to move from JSON to SQLite later without coupling the tracking engine to one persistence format.
+
+Optional remote storage will eventually be handled through a WaddleTracker API rather than through direct database access from the extension.
+
+---
+
+## Architecture
+
+WaddleTracker separates activity detection, session management, statistics, persistence, and presentation.
+
+```text
+VS Code Extension Host
+        │
+        ├── Editor events
+        │
+        ▼
+ ActivityTracker
+        │
+        ├── ContextResolver
+        │
+        ├── Idle detection
+        │
+        ├── Daily aggregation
+        │
+        └── SessionManager
+        │
+        ▼
+   TrackerState
+        │
+        ▼
+ StorageProvider
+        │
+        ▼
+ JsonStorageProvider
+```
+
+Statistics are derived separately:
+
+```text
+TrackerState
+     │
+     ▼
+StatisticsService
+     │
+     ├── Time ranges
+     ├── Active days
+     ├── Daily averages
+     ├── Best day
+     ├── Streaks
+     ├── Projects
+     ├── Languages
+     ├── Files
+     └── Daily activity
+```
+
+The user interface is split according to purpose:
+
+```text
+WaddleTracker Activity Bar
+        │
+        ├── Current Activity
+        │   └── Live Webview
+        │
+        ├── Session History
+        │   └── Native Tree View
+        │
+        └── Statistics Dashboard
+            └── Analytics Webview
+```
+
+This keeps live state, chronological session data, and aggregate analytics separate.
 
 ---
 
@@ -256,30 +573,53 @@ waddletracker/
 │   ├── launch.json
 │   └── tasks.json
 │
+├── resources/
+│   └── waddletracker.svg
+│
 ├── src/
+│   ├── sessions/
+│   │   ├── SessionHistoryService.ts
+│   │   └── SessionHistoryTypes.ts
+│   │
+│   ├── statistics/
+│   │   ├── StatisticsService.ts
+│   │   └── StatisticsTypes.ts
+│   │
 │   ├── storage/
 │   │   ├── JsonStorageProvider.ts
 │   │   └── StorageProvider.ts
 │   │
 │   ├── tracking/
 │   │   ├── ActivityTracker.ts
-│   │   └── ContextResolver.ts
+│   │   ├── ContextResolver.ts
+│   │   └── SessionManager.ts
 │   │
 │   ├── types/
 │   │   ├── ActivityContext.ts
+│   │   ├── CodingSession.ts
 │   │   └── TrackerState.ts
 │   │
 │   ├── ui/
+│   │   ├── CurrentActivityProvider.ts
+│   │   ├── SessionHistoryTreeProvider.ts
+│   │   ├── StatisticsDashboardProvider.ts
 │   │   └── StatusBarController.ts
+│   │
+│   ├── utils/
+│   │   └── formatters.ts
 │   │
 │   └── extension.ts
 │
+├── .gitignore
+├── LICENSE
+├── README.md
 ├── esbuild.js
 ├── package.json
+├── package-lock.json
 └── tsconfig.json
 ```
 
-The architecture intentionally separates tracking, storage, data models, and UI so each part can evolve independently.
+The architecture intentionally keeps tracking, session management, statistics, storage, types, and UI independent so each can evolve without tightly coupling the rest of the extension.
 
 ---
 
@@ -287,9 +627,9 @@ The architecture intentionally separates tracking, storage, data models, and UI 
 
 ### Requirements
 
-* Node.js
-* npm
-* Visual Studio Code
+- Node.js
+- npm
+- Visual Studio Code
 
 Clone the repository:
 
@@ -304,7 +644,7 @@ Install dependencies:
 npm install
 ```
 
-Run the TypeScript checks:
+Run TypeScript checks:
 
 ```bash
 npm run check
@@ -330,11 +670,13 @@ Select:
 Run WaddleTracker
 ```
 
-VS Code will launch an **Extension Development Host** with the development version of WaddleTracker loaded.
+VS Code will launch an **Extension Development Host** containing the development build of WaddleTracker.
 
 ---
 
 ## Development scripts
+
+### Type checking
 
 ```bash
 npm run check
@@ -342,11 +684,15 @@ npm run check
 
 Runs TypeScript type checking without producing output files.
 
+### Build
+
 ```bash
 npm run compile
 ```
 
-Builds the extension using esbuild.
+Builds the extension with esbuild.
+
+### Watch
 
 ```bash
 npm run watch
@@ -356,67 +702,43 @@ Runs esbuild in watch mode during development.
 
 ---
 
-## Architecture
-
-WaddleTracker currently follows this general architecture:
-
-```text
-VS Code Extension Host
-        │
-        ├── VS Code Events
-        │
-        ▼
- ActivityTracker
-        │
-        ├── ContextResolver
-        │
-        ├── Idle Detection
-        │
-        └── Activity Aggregation
-        │
-        ▼
- StorageProvider
-        │
-        ▼
- Local Persistence
-```
-
-Future components will extend this with:
-
-```text
-ActivityTracker
-      │
-      ▼
-SessionManager
-      │
-      ▼
-Statistics
-      │
-      ├── Projects
-      ├── Languages
-      ├── Files
-      ├── Sessions
-      └── Historical activity
-```
-
----
-
 ## Privacy
 
-WaddleTracker is being designed around a local-first model.
+WaddleTracker is built around a local-first model.
 
-The core extension does not require an account or external service to track development activity.
+The core extension does not require:
 
-Features involving synchronization or remote storage will be optional and explicitly separated from local tracking.
+- An account
+- A hosted backend
+- A subscription
+- Remote storage
+- Direct database access
 
-Additional privacy controls are planned for:
+WaddleTracker tracks development metadata rather than source-code contents.
 
-* File-path tracking
-* Project-name tracking
-* Ignore patterns
-* Language exclusions
-* Data retention
-* Synchronization
+Tracked metadata can currently include:
+
+- Workspace names
+- Project names
+- File paths
+- Language identifiers
+- Session timestamps
+- Active coding durations
+- Remote environment names
+
+Because file paths and project names can themselves contain sensitive information, additional privacy controls are an important part of the roadmap.
+
+Planned controls include:
+
+- Ignored projects
+- Ignored files
+- Ignored directories
+- Path patterns
+- Language exclusions
+- Configurable data retention
+- Synchronization controls
+
+Any future synchronization will remain optional.
 
 ---
 
@@ -424,53 +746,95 @@ Additional privacy controls are planned for:
 
 ### Foundation
 
-* [x] VS Code extension foundation
-* [x] TypeScript
-* [x] esbuild
-* [x] Local persistence
-* [x] Activity detection
-* [x] Idle detection
-* [x] Status bar integration
-* [x] Native configuration
-* [x] Project tracking
-* [x] File tracking
-* [x] Language tracking
+- [x] VS Code extension foundation
+- [x] TypeScript
+- [x] esbuild
+- [x] Local persistence
+- [x] Activity detection
+- [x] Idle detection
+- [x] Status bar integration
+- [x] Native configuration
+- [x] Project tracking
+- [x] Workspace tracking
+- [x] File tracking
+- [x] Language tracking
+- [x] Remote environment awareness
+- [x] Storage schema migrations
 
 ### Sessions
 
-* [ ] Coding session model
-* [ ] Session lifecycle management
-* [ ] Session persistence
-* [ ] Session history
+- [x] Coding-session model
+- [x] Session lifecycle management
+- [x] Session persistence
+- [x] Idle-based session boundaries
+- [x] Session recovery
+- [x] Session history
+- [x] Date-grouped session history
+- [x] Per-session language tracking
+- [x] Per-session file tracking
+- [x] Session language breakdowns
+- [x] Session file breakdowns
+- [x] Open tracked files from session history
 
 ### Statistics
 
-* [ ] Daily statistics
-* [ ] Weekly statistics
-* [ ] Monthly statistics
-* [ ] Project breakdowns
-* [ ] Language breakdowns
-* [ ] File breakdowns
-* [ ] Coding streaks
-* [ ] Activity heatmap
+- [x] Daily statistics
+- [x] 7-day statistics
+- [x] 30-day statistics
+- [x] All-time statistics
+- [x] Active-day counts
+- [x] Daily averages
+- [x] Best-day statistics
+- [x] Project breakdowns
+- [x] Language breakdowns
+- [x] File breakdowns
+- [x] Daily activity chart
+- [x] Current coding streak
+- [x] Longest coding streak
+- [x] 365-day activity heatmap
 
 ### Interface
 
-* [ ] WaddleTracker Activity Bar container
-* [ ] Sidebar overview
-* [ ] Current session view
-* [ ] Project statistics
-* [ ] Language statistics
-* [ ] Historical dashboard
+- [x] WaddleTracker Activity Bar container
+- [x] Current Activity Webview
+- [x] Current project display
+- [x] Active/idle status display
+- [x] Current-session display
+- [x] Current-language display
+- [x] Session History Tree View
+- [x] Statistics Dashboard
+- [x] Responsive statistics cards
+- [x] Dashboard range selector
+- [x] Project/language/file breakdown tabs
+- [x] Dashboard tooltips
+- [x] Clickable tracked files
+
+### Privacy
+
+- [ ] Ignore projects
+- [ ] Ignore files and directories
+- [ ] Ignore path patterns
+- [ ] Language exclusions
+- [ ] Configurable data retention
+- [ ] Additional path privacy controls
 
 ### Storage & Sync
 
-* [ ] SQLite local storage
-* [ ] Export and import
-* [ ] WaddleTracker API
-* [ ] Optional account/device synchronization
-* [ ] PostgreSQL support
-* [ ] MySQL support
+- [ ] SQLite local storage
+- [ ] Data export
+- [ ] Data import
+- [ ] WaddleTracker API
+- [ ] Optional synchronization
+- [ ] Multi-device statistics
+- [ ] PostgreSQL remote storage
+- [ ] MySQL remote storage
+
+### Extended platform
+
+- [ ] Companion web application
+- [ ] Cross-device analytics
+- [ ] Optional public developer profiles
+- [ ] Portfolio integrations
 
 ---
 
@@ -478,21 +842,30 @@ Additional privacy controls are planned for:
 
 WaddleTracker is currently built with:
 
-* TypeScript
-* VS Code Extension API
-* Node.js
-* esbuild
+- TypeScript
+- VS Code Extension API
+- Node.js
+- esbuild
+
+The extension intentionally avoids requiring a frontend framework for its VS Code Webviews.
 
 ---
 
 ## Contributing
 
-WaddleTracker is currently in early development and its architecture is still evolving.
+WaddleTracker is under active development and its architecture is still evolving.
 
-Issues and suggestions are welcome as the project develops.
+Issues, suggestions, bug reports, and contributions are welcome.
+
+Before submitting changes, verify:
+
+```bash
+npm run check
+npm run compile
+```
 
 ---
 
 ## License
 
-WaddleTracker is intended to be released under the MIT License.
+WaddleTracker is licensed under the **MIT License**.
