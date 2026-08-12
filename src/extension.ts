@@ -298,6 +298,94 @@ export async function activate(
       },
     );
 
+  const includeCurrentProjectCommand =
+    vscode.commands.registerCommand(
+      "waddletracker.includeCurrentProject",
+      async () => {
+        if (
+          !activityTracker
+        ) {
+          return;
+        }
+
+        const exclusion =
+          activityTracker.getCurrentExclusion();
+
+        if (
+          !exclusion ||
+          exclusion.kind !==
+            "project"
+        ) {
+          await vscode.window
+            .showInformationMessage(
+              "The current project is not excluded by a project rule.",
+            );
+
+          return;
+        }
+
+        const removed =
+          await removeTrackingExclusion(
+            "tracking.excludedProjects",
+            exclusion.pattern,
+            "project",
+          );
+
+        if (
+          removed
+        ) {
+          await vscode.window
+            .showInformationMessage(
+              `Removed project exclusion "${exclusion.pattern}".`,
+            );
+        }
+      },
+    );
+
+  const includeCurrentFileCommand =
+    vscode.commands.registerCommand(
+      "waddletracker.includeCurrentFile",
+      async () => {
+        if (
+          !activityTracker
+        ) {
+          return;
+        }
+
+        const exclusion =
+          activityTracker.getCurrentExclusion();
+
+        if (
+          !exclusion ||
+          exclusion.kind !==
+            "file"
+        ) {
+          await vscode.window
+            .showInformationMessage(
+              "The current file is not excluded by a file rule.",
+            );
+
+          return;
+        }
+
+        const removed =
+          await removeTrackingExclusion(
+            "tracking.excludedFiles",
+            exclusion.pattern,
+            "file",
+          );
+
+        if (
+          removed
+        ) {
+          await vscode.window
+            .showInformationMessage(
+              `Removed file exclusion "${exclusion.pattern}".`,
+            );
+        }
+      },
+    );
+
   const resetStatisticsCommand =
     vscode.commands.registerCommand(
       "waddletracker.resetStatistics",
@@ -364,6 +452,8 @@ export async function activate(
     refreshStatisticsCommand,
     excludeCurrentProjectCommand,
     excludeCurrentFileCommand,
+    includeCurrentProjectCommand,
+    includeCurrentFileCommand,
     resetStatisticsCommand,
   );
 
@@ -426,6 +516,88 @@ async function addTrackingExclusion(
       ...currentValues,
       value,
     ],
+    vscode.ConfigurationTarget.Global,
+  );
+
+  return true;
+}
+
+async function removeTrackingExclusion(
+  setting:
+    "tracking.excludedProjects" |
+    "tracking.excludedFiles",
+
+  pattern:
+    string,
+
+  kind:
+    "project" |
+    "file",
+): Promise<boolean> {
+  const configuration =
+    vscode.workspace.getConfiguration(
+      "waddleTracker",
+    );
+
+  const currentValues =
+    configuration.get<string[]>(
+      setting,
+      [],
+    );
+
+  if (
+    !currentValues.includes(
+      pattern,
+    )
+  ) {
+    await vscode.window
+      .showInformationMessage(
+        "The matching WaddleTracker exclusion rule no longer exists.",
+      );
+
+    return false;
+  }
+
+  const usesWildcard =
+    pattern.includes(
+      "*",
+    ) ||
+    pattern.includes(
+      "?",
+    );
+
+  if (
+    usesWildcard
+  ) {
+    const confirmation =
+      await vscode.window
+        .showWarningMessage(
+          `Remove the ${kind} exclusion rule "${pattern}"?`,
+          {
+            modal:
+              true,
+
+            detail:
+              "This is a wildcard rule and may currently exclude more than one item. Removing it will allow all matching items to be tracked again.",
+          },
+          "Remove Exclusion",
+        );
+
+    if (
+      confirmation !==
+      "Remove Exclusion"
+    ) {
+      return false;
+    }
+  }
+
+  await configuration.update(
+    setting,
+    currentValues.filter(
+      (value) =>
+        value !==
+        pattern,
+    ),
     vscode.ConfigurationTarget.Global,
   );
 
