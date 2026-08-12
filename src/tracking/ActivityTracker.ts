@@ -14,6 +14,7 @@ import { CodingSession } from "../types/CodingSession";
 
 import { ContextResolver } from "./ContextResolver";
 import { SessionManager } from "./SessionManager";
+import { TrackingFilter } from "./TrackingFilter";
 
 const TICK_INTERVAL_MS =
   1_000;
@@ -66,6 +67,9 @@ export class ActivityTracker
 
     private readonly contextResolver:
       ContextResolver,
+
+    private readonly trackingFilter =
+      new TrackingFilter(),
   ) {
     this.state =
       state;
@@ -104,7 +108,7 @@ export class ActivityTracker
     if (
       vscode.window.activeTextEditor
     ) {
-      this.markActivity();
+      this.handleEditorActivity();
     }
   }
 
@@ -163,8 +167,9 @@ export class ActivityTracker
 
   public isActive(): boolean {
     if (
+      this.isCurrentContextExcluded() ||
       this.lastActivityAt ===
-      undefined
+        undefined
     ) {
       return false;
     }
@@ -176,6 +181,16 @@ export class ActivityTracker
       Date.now() -
         this.lastActivityAt <
       idleTimeout
+    );
+  }
+
+  public isCurrentContextExcluded():
+    boolean {
+    return (
+      !this.trackingFilter
+        .shouldTrack(
+          this.currentContext,
+        )
     );
   }
 
@@ -268,17 +283,13 @@ export class ActivityTracker
     this.disposables.push(
       vscode.window.onDidChangeActiveTextEditor(
         () => {
-          this.refreshContext();
-
-          this.markActivity();
+          this.handleEditorActivity();
         },
       ),
 
       vscode.window.onDidChangeTextEditorSelection(
         () => {
-          this.refreshContext();
-
-          this.markActivity();
+          this.handleEditorActivity();
         },
       ),
 
@@ -290,9 +301,7 @@ export class ActivityTracker
               ?.document ===
             event.document
           ) {
-            this.refreshContext();
-
-            this.markActivity();
+            this.handleEditorActivity();
           }
         },
       ),
@@ -305,9 +314,7 @@ export class ActivityTracker
               ?.document ===
             document
           ) {
-            this.refreshContext();
-
-            this.markActivity();
+            this.handleEditorActivity();
           }
         },
       ),
@@ -320,9 +327,7 @@ export class ActivityTracker
               ?.document ===
             document
           ) {
-            this.refreshContext();
-
-            this.markActivity();
+            this.handleEditorActivity();
           }
         },
       ),
@@ -332,19 +337,110 @@ export class ActivityTracker
           this.refreshContext();
         },
       ),
+
+      vscode.workspace.onDidChangeConfiguration(
+        (event) => {
+          if (
+            event.affectsConfiguration(
+              "waddleTracker.tracking",
+            )
+          ) {
+            this.handleTrackingConfigurationChange();
+          }
+        },
+      ),
+    );
+  }
+
+  private handleEditorActivity(): void {
+    const now =
+      Date.now();
+
+    const nextContext =
+      this.contextResolver.resolve();
+
+    this.transitionContext(
+      nextContext,
+      now,
+    );
+
+    this.markActivity(
+      now,
     );
   }
 
   private refreshContext(): void {
-    this.currentContext =
+    const now =
+      Date.now();
+
+    const nextContext =
       this.contextResolver.resolve();
+
+    this.transitionContext(
+      nextContext,
+      now,
+    );
+
+    if (
+      this.isCurrentContextExcluded()
+    ) {
+      this.stopTrackingExcludedContext(
+        now,
+      );
+    }
 
     this.onDidUpdateEmitter.fire();
   }
 
-  private markActivity(): void {
-    const now =
-      Date.now();
+  private transitionContext(
+    nextContext:
+      ActivityContext,
+
+    now:
+      number,
+  ): void {
+    if (
+      this.contextsEqual(
+        this.currentContext,
+        nextContext,
+      )
+    ) {
+      return;
+    }
+
+    /*
+     * Account for time up to the context switch
+     * using the previous file/language/project.
+     *
+     * This also prevents time spent before an
+     * excluded context was opened from being
+     * attributed to that excluded context.
+     */
+    this.tickAt(
+      now,
+    );
+
+    this.currentContext =
+      nextContext;
+
+    this.lastTickAt =
+      now;
+  }
+
+  private markActivity(
+    now = Date.now(),
+  ): void {
+    if (
+      this.isCurrentContextExcluded()
+    ) {
+      this.stopTrackingExcludedContext(
+        now,
+      );
+
+      this.onDidUpdateEmitter.fire();
+
+      return;
+    }
 
     const wasIdle =
       this.lastActivityAt ===
@@ -394,6 +490,46 @@ export class ActivityTracker
     this.onDidUpdateEmitter.fire();
   }
 
+  private handleTrackingConfigurationChange():
+    void {
+    const now =
+      Date.now();
+
+    if (
+      this.isCurrentContextExcluded()
+    ) {
+      this.stopTrackingExcludedContext(
+        now,
+      );
+    }
+
+    this.onDidUpdateEmitter.fire();
+  }
+
+  private stopTrackingExcludedContext(
+    now:
+      number,
+  ): void {
+    if (
+      this.sessionManager
+        .getCurrentSession()
+    ) {
+      this.sessionManager
+        .closeSession(
+          now,
+        );
+
+      this.dirty =
+        true;
+    }
+
+    this.lastActivityAt =
+      undefined;
+
+    this.lastTickAt =
+      now;
+  }
+
   private tick(): void {
     this.tickAt(
       Date.now(),
@@ -409,6 +545,16 @@ export class ActivityTracker
     ) {
       this.lastTickAt =
         now;
+
+      return;
+    }
+
+    if (
+      this.isCurrentContextExcluded()
+    ) {
+      this.stopTrackingExcludedContext(
+        now,
+      );
 
       return;
     }
@@ -468,7 +614,11 @@ export class ActivityTracker
     activeUntil: number,
   ): void {
     if (
-      milliseconds <= 0
+      milliseconds <= 0 ||
+      !this.trackingFilter
+        .shouldTrack(
+          context,
+        )
     ) {
       return;
     }
@@ -550,6 +700,31 @@ export class ActivityTracker
 
     collection[key] =
       current;
+  }
+
+  private contextsEqual(
+    first:
+      ActivityContext,
+
+    second:
+      ActivityContext,
+  ): boolean {
+    return (
+      first.workspaceName ===
+        second.workspaceName &&
+      first.workspaceUri ===
+        second.workspaceUri &&
+      first.projectName ===
+        second.projectName &&
+      first.fileName ===
+        second.fileName &&
+      first.filePath ===
+        second.filePath &&
+      first.languageId ===
+        second.languageId &&
+      first.remoteName ===
+        second.remoteName
+    );
   }
 
   private getSessionEndTimestamp(
