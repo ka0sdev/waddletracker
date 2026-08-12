@@ -52,7 +52,6 @@ export async function activate(
   const statisticsProvider =
     new StatisticsTreeProvider(
       activityTracker,
-      statisticsService,
     );
 
   const statisticsView =
@@ -78,6 +77,7 @@ export async function activate(
       .registerWebviewViewProvider(
         StatisticsDashboardProvider
           .viewType,
+
         dashboardProvider,
       );
 
