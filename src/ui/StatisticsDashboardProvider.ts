@@ -35,6 +35,11 @@ interface DashboardData {
     DailyActivityPoint[];
 }
 
+interface WebviewMessage {
+  type?: string;
+  path?: string;
+}
+
 export class StatisticsDashboardProvider
   implements
     vscode.WebviewViewProvider,
@@ -99,17 +104,28 @@ export class StatisticsDashboardProvider
 
     webviewView.webview.onDidReceiveMessage(
       async (
-        message: {
-          type?: string;
-        },
+        message:
+          WebviewMessage,
       ) => {
-        if (
-          message.type ===
-            "ready" ||
-          message.type ===
-            "refresh"
+        switch (
+          message.type
         ) {
-          await this.sendStatistics();
+          case "ready":
+          case "refresh":
+            await this.sendStatistics();
+
+            break;
+
+          case "openFile":
+            if (
+              message.path
+            ) {
+              await this.openFile(
+                message.path,
+              );
+            }
+
+            break;
         }
       },
       undefined,
@@ -204,6 +220,33 @@ export class StatisticsDashboardProvider
       type: "statistics",
       data,
     });
+  }
+
+  private async openFile(
+    filePath: string,
+  ): Promise<void> {
+    try {
+      const document =
+        await vscode.workspace
+          .openTextDocument(
+            vscode.Uri.file(
+              filePath,
+            ),
+          );
+
+      await vscode.window
+        .showTextDocument(
+          document,
+          {
+            preview: true,
+          },
+        );
+    } catch {
+      await vscode.window
+        .showWarningMessage(
+          `WaddleTracker could not open ${filePath}.`,
+        );
+    }
   }
 
   private getHtml(
@@ -478,7 +521,7 @@ export class StatisticsDashboardProvider
       display: flex;
 
       align-items:
-        center;
+        flex-start;
 
       justify-content:
         space-between;
@@ -505,6 +548,9 @@ export class StatisticsDashboardProvider
     }
 
     .section-context {
+      margin-top:
+        2px;
+
       color:
         var(
           --vscode-descriptionForeground
@@ -539,6 +585,17 @@ export class StatisticsDashboardProvider
         );
     }
 
+    .activity-chart-scroll {
+      overflow-x:
+        auto;
+
+      overflow-y:
+        hidden;
+
+      scrollbar-width:
+        thin;
+    }
+
     .activity-chart {
       display: flex;
 
@@ -546,6 +603,9 @@ export class StatisticsDashboardProvider
         stretch;
 
       gap: 3px;
+
+      min-width:
+        100%;
 
       min-height:
         118px;
@@ -570,10 +630,13 @@ export class StatisticsDashboardProvider
         column;
 
       min-width:
-        3px;
+        5px;
 
       height:
         110px;
+
+      cursor:
+        default;
     }
 
     .activity-bar-area {
@@ -603,6 +666,9 @@ export class StatisticsDashboardProvider
 
       opacity:
         0.85;
+
+      transition:
+        opacity 100ms ease;
     }
 
     .activity-bar.zero {
@@ -610,9 +676,9 @@ export class StatisticsDashboardProvider
         0.12;
     }
 
-    .activity-bar:hover {
-      opacity:
-        1;
+    .activity-column:hover
+      .activity-bar {
+      opacity: 1;
     }
 
     .activity-date-label {
@@ -681,6 +747,27 @@ export class StatisticsDashboardProvider
         column;
 
       gap: 4px;
+    }
+
+    .ranking-item.clickable {
+      cursor:
+        pointer;
+
+      border-radius:
+        3px;
+
+      padding:
+        2px;
+
+      margin:
+        -2px;
+    }
+
+    .ranking-item.clickable:hover {
+      background:
+        var(
+          --vscode-list-hoverBackground
+        );
     }
 
     .ranking-header {
@@ -806,6 +893,24 @@ export class StatisticsDashboardProvider
         var(
           --vscode-charts-blue
         );
+
+      cursor:
+        default;
+
+      transition:
+        opacity 100ms ease,
+        outline-color 100ms ease;
+    }
+
+    .heatmap-cell:hover {
+      outline:
+        1px solid
+        var(
+          --vscode-focusBorder
+        );
+
+      outline-offset:
+        1px;
     }
 
     .heatmap-cell.level-0 {
@@ -929,6 +1034,152 @@ export class StatisticsDashboardProvider
 
       font-size:
         12px;
+    }
+
+    .dashboard-tooltip {
+      position:
+        fixed;
+
+      z-index:
+        1000;
+
+      max-width:
+        260px;
+
+      padding:
+        6px 8px;
+
+      border:
+        1px solid
+        var(
+          --vscode-editorHoverWidget-border,
+          var(
+            --vscode-widget-border
+          )
+        );
+
+      border-radius:
+        4px;
+
+      color:
+        var(
+          --vscode-editorHoverWidget-foreground,
+          var(
+            --vscode-foreground
+          )
+        );
+
+      background:
+        var(
+          --vscode-editorHoverWidget-background,
+          var(
+            --vscode-editorWidget-background
+          )
+        );
+
+      box-shadow:
+        0 2px 8px
+        var(
+          --vscode-widget-shadow,
+          rgba(
+            0,
+            0,
+            0,
+            0.25
+          )
+        );
+
+      font-size:
+        11px;
+
+      line-height:
+        1.4;
+
+      pointer-events:
+        none;
+
+      opacity: 0;
+
+      visibility:
+        hidden;
+
+      transform:
+        translateY(
+          2px
+        );
+
+      transition:
+        opacity 80ms ease,
+        transform 80ms ease,
+        visibility 80ms ease;
+    }
+
+    .dashboard-tooltip.visible {
+      opacity: 1;
+
+      visibility:
+        visible;
+
+      transform:
+        translateY(
+          0
+        );
+    }
+
+    @media (
+      max-width:
+        280px
+    ) {
+      body {
+        padding:
+          10px 8px;
+      }
+
+      .dashboard {
+        gap:
+          14px;
+      }
+
+      .metrics,
+      .streak-grid {
+        grid-template-columns:
+          1fr;
+      }
+
+      .range-button,
+      .breakdown-button {
+        font-size:
+          10px;
+      }
+
+      .heatmap-footer {
+        align-items:
+          flex-start;
+
+        flex-direction:
+          column;
+      }
+    }
+
+    @media (
+      max-width:
+        220px
+    ) {
+      .range-selector {
+        grid-template-columns:
+          repeat(
+            2,
+            minmax(
+              0,
+              1fr
+            )
+          );
+      }
+
+      .breakdown-tabs {
+        grid-template-columns:
+          1fr;
+      }
     }
   </style>
 </head>
@@ -1135,13 +1386,17 @@ export class StatisticsDashboardProvider
       </div>
 
       <div
-        class="activity-chart"
-        id="activity-chart"
+        class="activity-chart-scroll"
       >
         <div
-          class="activity-empty"
+          class="activity-chart"
+          id="activity-chart"
         >
-          Waiting for statistics…
+          <div
+            class="activity-empty"
+          >
+            Waiting for statistics…
+          </div>
         </div>
       </div>
     </section>
@@ -1149,11 +1404,20 @@ export class StatisticsDashboardProvider
     <section
       class="section"
     >
-      <h2
-        class="section-title"
-      >
-        Breakdown
-      </h2>
+      <div>
+        <h2
+          class="section-title"
+        >
+          Breakdown
+        </h2>
+
+        <div
+          class="section-context"
+          id="breakdown-context"
+        >
+          Top 5
+        </div>
+      </div>
 
       <div
         class="breakdown-tabs"
@@ -1259,6 +1523,12 @@ export class StatisticsDashboardProvider
     </section>
   </div>
 
+  <div
+    class="dashboard-tooltip"
+    id="dashboard-tooltip"
+    role="tooltip"
+  ></div>
+
   <script
     nonce="${nonce}"
   >
@@ -1278,6 +1548,9 @@ export class StatisticsDashboardProvider
     let selectedBreakdown =
       previousState.selectedBreakdown ??
       "projects";
+
+    let heatmapInitialized =
+      false;
 
     const rangeButtons =
       document.querySelectorAll(
@@ -1339,6 +1612,11 @@ export class StatisticsDashboardProvider
         "activity-chart"
       );
 
+    const breakdownContext =
+      document.getElementById(
+        "breakdown-context"
+      );
+
     const breakdownRanking =
       document.getElementById(
         "breakdown-ranking"
@@ -1357,6 +1635,11 @@ export class StatisticsDashboardProvider
     const refreshButton =
       document.getElementById(
         "refresh"
+      );
+
+    const tooltip =
+      document.getElementById(
+        "dashboard-tooltip"
       );
 
     for (
@@ -1423,6 +1706,13 @@ export class StatisticsDashboardProvider
           message.data;
 
         render();
+      },
+    );
+
+    window.addEventListener(
+      "blur",
+      () => {
+        hideTooltip();
       },
     );
 
@@ -1502,13 +1792,20 @@ export class StatisticsDashboardProvider
       if (
         statistics.bestDay
       ) {
-        bestDay.title =
-          formatFullDate(
-            statistics.bestDay.date
-          );
-      } else {
-        bestDay.removeAttribute(
-          "title"
+        attachTooltip(
+          bestDay,
+          [
+            formatFullDate(
+              statistics.bestDay.date
+            ),
+            formatDuration(
+              statistics
+                .bestDay
+                .activeMilliseconds,
+            ),
+          ].join(
+            "\\n"
+          ),
         );
       }
 
@@ -1561,11 +1858,35 @@ export class StatisticsDashboardProvider
           streaks.longestEndDate,
         );
 
-      currentStreak.title =
-        currentStreakDetail.textContent;
+      attachTooltip(
+        currentStreak,
+        streaks.currentDays > 0
+          ? [
+              "Current streak",
+              formatStreakRange(
+                streaks.currentStartDate,
+                streaks.currentEndDate,
+              ),
+            ].join(
+              "\\n"
+            )
+          : "No active coding streak",
+      );
 
-      longestStreak.title =
-        longestStreakDetail.textContent;
+      attachTooltip(
+        longestStreak,
+        streaks.longestDays > 0
+          ? [
+              "Longest streak",
+              formatStreakRange(
+                streaks.longestStartDate,
+                streaks.longestEndDate,
+              ),
+            ].join(
+              "\\n"
+            )
+          : "No coding streak recorded",
+      );
     }
 
     function renderBreakdown() {
@@ -1607,6 +1928,19 @@ export class StatisticsDashboardProvider
 
           break;
       }
+
+      breakdownContext.textContent =
+        items.length > 5
+          ? "Top 5 of " +
+            items.length
+          : items.length > 0
+            ? items.length +
+              (
+                items.length === 1
+                  ? " entry"
+                  : " entries"
+              )
+            : "No activity";
 
       renderRanking(
         breakdownRanking,
@@ -1652,6 +1986,20 @@ export class StatisticsDashboardProvider
         return;
       }
 
+      if (
+        daily.length > 31
+      ) {
+        activityChart.style.minWidth =
+          Math.max(
+            daily.length * 8,
+            320,
+          ) +
+          "px";
+      } else {
+        activityChart.style.minWidth =
+          "100%";
+      }
+
       const maximum =
         Math.max(
           ...daily.map(
@@ -1678,14 +2026,19 @@ export class StatisticsDashboardProvider
         column.className =
           "activity-column";
 
-        column.title =
-          formatFullDate(
-            day.date
-          ) +
-          " — " +
-          formatDuration(
-            day.activeMilliseconds
-          );
+        attachTooltip(
+          column,
+          [
+            formatFullDate(
+              day.date
+            ),
+            formatDuration(
+              day.activeMilliseconds
+            ),
+          ].join(
+            "\\n"
+          ),
+        );
 
         const barArea =
           document.createElement(
@@ -1867,6 +2220,57 @@ export class StatisticsDashboardProvider
         wrapper.className =
           "ranking-item";
 
+        if (
+          mode === "files"
+        ) {
+          wrapper.classList.add(
+            "clickable"
+          );
+
+          wrapper.tabIndex =
+            0;
+
+          wrapper.setAttribute(
+            "role",
+            "button",
+          );
+
+          wrapper.setAttribute(
+            "aria-label",
+            "Open " +
+              getFileName(
+                item.name
+              ),
+          );
+
+          wrapper.addEventListener(
+            "click",
+            () => {
+              openTrackedFile(
+                item.name
+              );
+            },
+          );
+
+          wrapper.addEventListener(
+            "keydown",
+            (event) => {
+              if (
+                event.key ===
+                  "Enter" ||
+                event.key ===
+                  " "
+              ) {
+                event.preventDefault();
+
+                openTrackedFile(
+                  item.name
+                );
+              }
+            },
+          );
+        }
+
         const header =
           document.createElement(
             "div"
@@ -1902,8 +2306,37 @@ export class StatisticsDashboardProvider
             item.name;
         }
 
-        name.title =
-          item.name;
+        const tooltipLines =
+          [
+            mode === "languages"
+              ? formatLanguageName(
+                  item.name
+                )
+              : item.name,
+
+            formatDuration(
+              item.activeMilliseconds
+            ) +
+              " • " +
+              formatPercentage(
+                item.percentage
+              ),
+          ];
+
+        if (
+          mode === "files"
+        ) {
+          tooltipLines.push(
+            "Click to open file"
+          );
+        }
+
+        attachTooltip(
+          wrapper,
+          tooltipLines.join(
+            "\\n"
+          ),
+        );
 
         const value =
           document.createElement(
@@ -1968,9 +2401,21 @@ export class StatisticsDashboardProvider
       }
     }
 
+    function openTrackedFile(
+      filePath
+    ) {
+      vscode.postMessage({
+        type: "openFile",
+        path: filePath,
+      });
+    }
+
     function renderHeatmap(
       daily
     ) {
+      const previousScrollLeft =
+        heatmapScroll.scrollLeft;
+
       heatmap.replaceChildren();
 
       if (
@@ -2039,14 +2484,22 @@ export class StatisticsDashboardProvider
           "heatmap-cell level-" +
           level;
 
-        cell.title =
-          formatFullDate(
-            day.date
-          ) +
-          " — " +
-          formatDuration(
-            day.activeMilliseconds
-          );
+        attachTooltip(
+          cell,
+          [
+            formatFullDate(
+              day.date
+            ),
+            day.activeMilliseconds > 0
+              ? formatDuration(
+                  day.activeMilliseconds
+                ) +
+                " coding"
+              : "No coding activity",
+          ].join(
+            "\\n"
+          ),
+        );
 
         heatmap.appendChild(
           cell
@@ -2055,8 +2508,18 @@ export class StatisticsDashboardProvider
 
       requestAnimationFrame(
         () => {
-          heatmapScroll.scrollLeft =
-            heatmapScroll.scrollWidth;
+          if (
+            heatmapInitialized
+          ) {
+            heatmapScroll.scrollLeft =
+              previousScrollLeft;
+          } else {
+            heatmapScroll.scrollLeft =
+              heatmapScroll.scrollWidth;
+
+            heatmapInitialized =
+              true;
+          }
         },
       );
     }
@@ -2094,6 +2557,157 @@ export class StatisticsDashboardProvider
       }
 
       return 4;
+    }
+
+    function attachTooltip(
+      element,
+      content
+    ) {
+      element.dataset.tooltip =
+        content;
+
+      element.addEventListener(
+        "mouseenter",
+        (event) => {
+          showTooltip(
+            element.dataset.tooltip,
+            event.clientX,
+            event.clientY,
+          );
+        },
+      );
+
+      element.addEventListener(
+        "mousemove",
+        (event) => {
+          positionTooltip(
+            event.clientX,
+            event.clientY,
+          );
+        },
+      );
+
+      element.addEventListener(
+        "mouseleave",
+        () => {
+          hideTooltip();
+        },
+      );
+
+      element.addEventListener(
+        "focus",
+        () => {
+          const rectangle =
+            element.getBoundingClientRect();
+
+          showTooltip(
+            element.dataset.tooltip,
+            rectangle.left +
+              rectangle.width / 2,
+            rectangle.top,
+          );
+        },
+      );
+
+      element.addEventListener(
+        "blur",
+        () => {
+          hideTooltip();
+        },
+      );
+    }
+
+    function showTooltip(
+      content,
+      x,
+      y
+    ) {
+      if (
+        !content
+      ) {
+        return;
+      }
+
+      tooltip.textContent =
+        content;
+
+      tooltip.style.whiteSpace =
+        "pre-line";
+
+      tooltip.classList.add(
+        "visible"
+      );
+
+      positionTooltip(
+        x,
+        y,
+      );
+    }
+
+    function positionTooltip(
+      x,
+      y
+    ) {
+      const offset =
+        12;
+
+      const margin =
+        8;
+
+      const rectangle =
+        tooltip.getBoundingClientRect();
+
+      let left =
+        x +
+        offset;
+
+      let top =
+        y +
+        offset;
+
+      if (
+        left +
+          rectangle.width +
+          margin >
+        window.innerWidth
+      ) {
+        left =
+          x -
+          rectangle.width -
+          offset;
+      }
+
+      if (
+        top +
+          rectangle.height +
+          margin >
+        window.innerHeight
+      ) {
+        top =
+          y -
+          rectangle.height -
+          offset;
+      }
+
+      tooltip.style.left =
+        Math.max(
+          margin,
+          left,
+        ) +
+        "px";
+
+      tooltip.style.top =
+        Math.max(
+          margin,
+          top,
+        ) +
+        "px";
+    }
+
+    function hideTooltip() {
+      tooltip.classList.remove(
+        "visible"
+      );
     }
 
     function formatRangeContext(
