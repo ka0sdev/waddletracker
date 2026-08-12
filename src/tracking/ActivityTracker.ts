@@ -10,8 +10,10 @@ import {
 } from "../types/TrackerState";
 
 import { ActivityContext } from "../types/ActivityContext";
+import { CodingSession } from "../types/CodingSession";
 
 import { ContextResolver } from "./ContextResolver";
+import { SessionManager } from "./SessionManager";
 
 const TICK_INTERVAL_MS =
   1_000;
@@ -43,6 +45,9 @@ export class ActivityTracker
   private dirty = false;
   private disposed = false;
 
+  private readonly sessionManager:
+    SessionManager;
+
   private readonly disposables:
     vscode.Disposable[] = [];
 
@@ -70,6 +75,11 @@ export class ActivityTracker
 
     this.currentContext =
       this.contextResolver.resolve();
+
+    this.sessionManager =
+      new SessionManager(
+        this.state,
+      );
   }
 
   public start(): void {
@@ -116,6 +126,18 @@ export class ActivityTracker
     };
   }
 
+  public getCurrentSession():
+    CodingSession | undefined {
+    return this.sessionManager
+      .getCurrentSession();
+  }
+
+  public getSessions():
+    readonly CodingSession[] {
+    return this.sessionManager
+      .getSessions();
+  }
+
   public isActive(): boolean {
     if (
       this.lastActivityAt ===
@@ -151,7 +173,8 @@ export class ActivityTracker
       return;
     }
 
-    this.disposed = true;
+    this.disposed =
+      true;
 
     if (this.tickTimer) {
       clearInterval(
@@ -163,6 +186,30 @@ export class ActivityTracker
       clearInterval(
         this.saveTimer,
       );
+    }
+
+    /*
+     * Account for any active time between the
+     * previous tick and extension shutdown.
+     */
+    this.tick();
+
+    if (
+      this.sessionManager
+        .getCurrentSession()
+    ) {
+      const endedAt =
+        this.getSessionEndTimestamp(
+          Date.now(),
+        );
+
+      this.sessionManager
+        .closeSession(
+          endedAt,
+        );
+
+      this.dirty =
+        true;
     }
 
     for (
@@ -257,14 +304,64 @@ export class ActivityTracker
   }
 
   private markActivity(): void {
-    this.lastActivityAt =
-      Date.now();
-  }
-
-  private tick(): void {
     const now =
       Date.now();
 
+    const wasIdle =
+      this.lastActivityAt ===
+        undefined ||
+      now -
+        this.lastActivityAt >=
+        this.getIdleTimeoutMilliseconds();
+
+    if (wasIdle) {
+      /*
+       * Finish accounting for the previous
+       * active period before beginning a new
+       * session.
+       */
+      if (
+        this.lastActivityAt !==
+        undefined
+      ) {
+        this.tickAt(
+          now,
+        );
+      }
+
+      this.lastTickAt =
+        now;
+
+      this.sessionManager
+        .startSession(
+          this.currentContext,
+          now,
+        );
+
+      this.dirty =
+        true;
+    }
+
+    this.lastActivityAt =
+      now;
+
+    this.sessionManager
+      .markActivity(
+      now,
+  );
+
+    this.onDidUpdateEmitter.fire();
+  }
+
+  private tick(): void {
+    this.tickAt(
+      Date.now(),
+    );
+  }
+
+  private tickAt(
+    now: number,
+  ): void {
     if (
       this.lastActivityAt ===
       undefined
@@ -299,7 +396,24 @@ export class ActivityTracker
       this.addActiveTime(
         elapsed,
         this.currentContext,
+        activeUntil,
       );
+    }
+
+    if (
+      now >= activityCutoff &&
+      this.sessionManager
+        .getCurrentSession()
+    ) {
+      this.sessionManager
+        .closeSession(
+          activityCutoff,
+        );
+
+      this.dirty =
+        true;
+
+      this.onDidUpdateEmitter.fire();
     }
 
     this.lastTickAt =
@@ -309,6 +423,7 @@ export class ActivityTracker
   private addActiveTime(
     milliseconds: number,
     context: ActivityContext,
+    activeUntil: number,
   ): void {
     if (
       milliseconds <= 0
@@ -361,6 +476,12 @@ export class ActivityTracker
     this.state.daily[date] =
       current;
 
+    this.sessionManager
+      .recordActiveTime(
+        milliseconds,
+        activeUntil,
+      );
+
     this.dirty =
       true;
 
@@ -385,6 +506,23 @@ export class ActivityTracker
 
     collection[key] =
       current;
+  }
+
+  private getSessionEndTimestamp(
+    now: number,
+  ): number {
+    if (
+      this.lastActivityAt ===
+      undefined
+    ) {
+      return now;
+    }
+
+    return Math.min(
+      now,
+      this.lastActivityAt +
+        this.getIdleTimeoutMilliseconds(),
+    );
   }
 
   private getIdleTimeoutMilliseconds(): number {
