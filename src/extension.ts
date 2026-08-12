@@ -5,6 +5,7 @@ import { JsonStorageProvider } from "./storage/JsonStorageProvider";
 import { ActivityTracker } from "./tracking/ActivityTracker";
 import { ContextResolver } from "./tracking/ContextResolver";
 
+import { StatisticsTreeProvider } from "./ui/StatisticsTreeProvider";
 import { StatusBarController } from "./ui/StatusBarController";
 
 let activityTracker:
@@ -36,6 +37,23 @@ export async function activate(
   const statusBar =
     new StatusBarController(
       activityTracker,
+    );
+
+  const statisticsProvider =
+    new StatisticsTreeProvider(
+      activityTracker,
+    );
+
+  const statisticsView =
+    vscode.window.createTreeView(
+      "waddletracker.statistics",
+      {
+        treeDataProvider:
+          statisticsProvider,
+
+        showCollapseAll:
+          true,
+      },
     );
 
   const showStatusCommand =
@@ -114,11 +132,22 @@ export async function activate(
       },
     );
 
+  const refreshStatisticsCommand =
+    vscode.commands.registerCommand(
+      "waddletracker.refreshStatistics",
+      () => {
+        statisticsProvider.refresh();
+      },
+    );
+
   context.subscriptions.push(
     activityTracker,
     statusBar,
+    statisticsProvider,
+    statisticsView,
     showStatusCommand,
     openSettingsCommand,
+    refreshStatisticsCommand,
   );
 
   activityTracker.start();
