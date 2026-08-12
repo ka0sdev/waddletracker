@@ -3,7 +3,9 @@ import * as vscode from "vscode";
 import { StatisticsService } from "../statistics/StatisticsService";
 
 import {
+  DailyActivityPoint,
   HistoricalStatistics,
+  StreakStatistics,
 } from "../types/StatisticsTypes";
 
 import { ActivityTracker } from "../tracking/ActivityTracker";
@@ -11,11 +13,26 @@ import { ActivityTracker } from "../tracking/ActivityTracker";
 const DASHBOARD_REFRESH_INTERVAL_MS =
   30_000;
 
+const HEATMAP_DAY_COUNT =
+  365;
+
 interface DashboardData {
   today: HistoricalStatistics;
-  sevenDays: HistoricalStatistics;
-  thirtyDays: HistoricalStatistics;
-  allTime: HistoricalStatistics;
+
+  sevenDays:
+    HistoricalStatistics;
+
+  thirtyDays:
+    HistoricalStatistics;
+
+  allTime:
+    HistoricalStatistics;
+
+  streaks:
+    StreakStatistics;
+
+  heatmap:
+    DailyActivityPoint[];
 }
 
 export class StatisticsDashboardProvider
@@ -42,21 +59,6 @@ export class StatisticsDashboardProvider
     private readonly statisticsService:
       StatisticsService,
   ) {
-    this.disposables.push(
-      this.tracker.onDidUpdate(
-        () => {
-          /*
-           * ActivityTracker updates every second.
-           *
-           * The dashboard deliberately does not
-           * re-render on every tracking tick.
-           * Statistics are pushed periodically
-           * instead.
-           */
-        },
-      ),
-    );
-
     this.refreshTimer =
       setInterval(
         () => {
@@ -103,14 +105,9 @@ export class StatisticsDashboardProvider
       ) => {
         if (
           message.type ===
-          "ready"
-        ) {
-          await this.sendStatistics();
-        }
-
-        if (
+            "ready" ||
           message.type ===
-          "refresh"
+            "refresh"
         ) {
           await this.sendStatistics();
         }
@@ -188,6 +185,19 @@ export class StatisticsDashboardProvider
             history,
             "all",
           ),
+
+      streaks:
+        this.statisticsService
+          .getStreakStatistics(
+            history,
+          ),
+
+      heatmap:
+        this.statisticsService
+          .getCalendarActivity(
+            history,
+            HEATMAP_DAY_COUNT,
+          ),
     };
 
     await this.view.webview.postMessage({
@@ -201,9 +211,6 @@ export class StatisticsDashboardProvider
   ): string {
     const nonce =
       this.createNonce();
-
-    const cspSource =
-      webview.cspSource;
 
     return /* html */ `
 <!DOCTYPE html>
@@ -220,24 +227,29 @@ export class StatisticsDashboardProvider
     http-equiv="Content-Security-Policy"
     content="
       default-src 'none';
-      style-src ${cspSource} 'unsafe-inline';
+      style-src ${webview.cspSource} 'unsafe-inline';
       script-src 'nonce-${nonce}';
     "
   >
 
-  <title>WaddleTracker Statistics</title>
+  <title>
+    WaddleTracker Statistics
+  </title>
 
   <style>
     :root {
-      color-scheme: light dark;
+      color-scheme:
+        light dark;
     }
 
     * {
-      box-sizing: border-box;
+      box-sizing:
+        border-box;
     }
 
     body {
       margin: 0;
+
       padding: 12px;
 
       color:
@@ -262,13 +274,17 @@ export class StatisticsDashboardProvider
     }
 
     button {
-      font-family: inherit;
+      font-family:
+        inherit;
     }
 
     .dashboard {
       display: flex;
-      flex-direction: column;
-      gap: 16px;
+
+      flex-direction:
+        column;
+
+      gap: 18px;
     }
 
     .range-selector {
@@ -295,7 +311,8 @@ export class StatisticsDashboardProvider
           transparent
         );
 
-      border-radius: 3px;
+      border-radius:
+        3px;
 
       color:
         var(
@@ -307,11 +324,14 @@ export class StatisticsDashboardProvider
           --vscode-button-secondaryBackground
         );
 
-      cursor: pointer;
+      cursor:
+        pointer;
 
-      font-size: 11px;
+      font-size:
+        11px;
 
-      white-space: nowrap;
+      white-space:
+        nowrap;
     }
 
     .range-button {
@@ -345,7 +365,8 @@ export class StatisticsDashboardProvider
         );
     }
 
-    .metrics {
+    .metrics,
+    .streak-grid {
       display: grid;
 
       grid-template-columns:
@@ -360,7 +381,8 @@ export class StatisticsDashboardProvider
       gap: 8px;
     }
 
-    .metric {
+    .metric,
+    .streak-card {
       min-width: 0;
 
       padding: 10px;
@@ -371,7 +393,8 @@ export class StatisticsDashboardProvider
           --vscode-widget-border
         );
 
-      border-radius: 4px;
+      border-radius:
+        4px;
 
       background:
         var(
@@ -379,40 +402,86 @@ export class StatisticsDashboardProvider
         );
     }
 
-    .metric-label {
-      margin-bottom: 4px;
+    .metric-label,
+    .streak-label {
+      margin-bottom:
+        4px;
 
       color:
         var(
           --vscode-descriptionForeground
         );
 
-      font-size: 11px;
+      font-size:
+        11px;
 
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      overflow:
+        hidden;
+
+      text-overflow:
+        ellipsis;
+
+      white-space:
+        nowrap;
     }
 
-    .metric-value {
-      font-size: 16px;
-      font-weight: 600;
+    .metric-value,
+    .streak-value {
+      font-size:
+        16px;
 
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      font-weight:
+        600;
+
+      overflow:
+        hidden;
+
+      text-overflow:
+        ellipsis;
+
+      white-space:
+        nowrap;
+    }
+
+    .streak-detail {
+      margin-top:
+        4px;
+
+      color:
+        var(
+          --vscode-descriptionForeground
+        );
+
+      font-size:
+        10px;
+
+      overflow:
+        hidden;
+
+      text-overflow:
+        ellipsis;
+
+      white-space:
+        nowrap;
     }
 
     .section {
       display: flex;
-      flex-direction: column;
+
+      flex-direction:
+        column;
+
       gap: 8px;
     }
 
     .section-header {
       display: flex;
-      align-items: center;
-      justify-content: space-between;
+
+      align-items:
+        center;
+
+      justify-content:
+        space-between;
 
       gap: 8px;
     }
@@ -420,15 +489,29 @@ export class StatisticsDashboardProvider
     .section-title {
       margin: 0;
 
-      font-size: 12px;
-      font-weight: 600;
-
-      text-transform: uppercase;
-
       color:
         var(
           --vscode-sideBarSectionHeader-foreground
         );
+
+      font-size:
+        12px;
+
+      font-weight:
+        600;
+
+      text-transform:
+        uppercase;
+    }
+
+    .section-context {
+      color:
+        var(
+          --vscode-descriptionForeground
+        );
+
+      font-size:
+        10px;
     }
 
     .refresh-button {
@@ -445,7 +528,8 @@ export class StatisticsDashboardProvider
       background:
         transparent;
 
-      cursor: pointer;
+      cursor:
+        pointer;
     }
 
     .refresh-button:hover {
@@ -457,14 +541,17 @@ export class StatisticsDashboardProvider
 
     .activity-chart {
       display: flex;
-      align-items: flex-end;
+
+      align-items:
+        stretch;
 
       gap: 3px;
 
-      min-height: 100px;
+      min-height:
+        118px;
 
       padding:
-        10px 4px 4px 4px;
+        8px 2px 0 2px;
 
       border-bottom:
         1px solid
@@ -475,19 +562,36 @@ export class StatisticsDashboardProvider
 
     .activity-column {
       display: flex;
+
+      flex:
+        1 1 0;
+
+      flex-direction:
+        column;
+
+      min-width:
+        3px;
+
+      height:
+        110px;
+    }
+
+    .activity-bar-area {
+      display: flex;
+
       flex: 1;
 
-      align-items: flex-end;
+      align-items:
+        flex-end;
 
-      min-width: 3px;
-
-      height: 90px;
+      min-height: 0;
     }
 
     .activity-bar {
       width: 100%;
 
-      min-height: 2px;
+      min-height:
+        2px;
 
       border-radius:
         2px 2px 0 0;
@@ -497,11 +601,40 @@ export class StatisticsDashboardProvider
           --vscode-charts-blue
         );
 
-      opacity: 0.85;
+      opacity:
+        0.85;
+    }
+
+    .activity-bar.zero {
+      opacity:
+        0.12;
     }
 
     .activity-bar:hover {
-      opacity: 1;
+      opacity:
+        1;
+    }
+
+    .activity-date-label {
+      min-height:
+        16px;
+
+      padding-top:
+        4px;
+
+      color:
+        var(
+          --vscode-descriptionForeground
+        );
+
+      font-size:
+        9px;
+
+      text-align:
+        center;
+
+      white-space:
+        nowrap;
     }
 
     .activity-empty {
@@ -531,22 +664,33 @@ export class StatisticsDashboardProvider
 
     .ranking {
       display: flex;
-      flex-direction: column;
+
+      flex-direction:
+        column;
+
       gap: 9px;
 
-      min-height: 20px;
+      min-height:
+        20px;
     }
 
     .ranking-item {
       display: flex;
-      flex-direction: column;
+
+      flex-direction:
+        column;
+
       gap: 4px;
     }
 
     .ranking-header {
       display: flex;
-      align-items: center;
-      justify-content: space-between;
+
+      align-items:
+        center;
+
+      justify-content:
+        space-between;
 
       gap: 8px;
     }
@@ -554,9 +698,14 @@ export class StatisticsDashboardProvider
     .ranking-name {
       min-width: 0;
 
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      overflow:
+        hidden;
+
+      text-overflow:
+        ellipsis;
+
+      white-space:
+        nowrap;
     }
 
     .ranking-value {
@@ -567,16 +716,21 @@ export class StatisticsDashboardProvider
           --vscode-descriptionForeground
         );
 
-      font-size: 11px;
+      font-size:
+        11px;
     }
 
     .progress {
       width: 100%;
-      height: 4px;
 
-      overflow: hidden;
+      height:
+        4px;
 
-      border-radius: 2px;
+      overflow:
+        hidden;
+
+      border-radius:
+        2px;
 
       background:
         color-mix(
@@ -591,12 +745,180 @@ export class StatisticsDashboardProvider
     .progress-fill {
       height: 100%;
 
-      border-radius: 2px;
+      border-radius:
+        2px;
 
       background:
         var(
           --vscode-progressBar-background
         );
+    }
+
+    .heatmap-scroll {
+      overflow-x:
+        auto;
+
+      overflow-y:
+        hidden;
+
+      padding-bottom:
+        4px;
+
+      scrollbar-width:
+        thin;
+    }
+
+    .heatmap {
+      display: grid;
+
+      grid-template-rows:
+        repeat(
+          7,
+          10px
+        );
+
+      grid-auto-flow:
+        column;
+
+      grid-auto-columns:
+        10px;
+
+      gap: 2px;
+
+      width:
+        max-content;
+
+      min-width:
+        100%;
+    }
+
+    .heatmap-cell {
+      width:
+        10px;
+
+      height:
+        10px;
+
+      border-radius:
+        2px;
+
+      background:
+        var(
+          --vscode-charts-blue
+        );
+    }
+
+    .heatmap-cell.level-0 {
+      background:
+        var(
+          --vscode-widget-border
+        );
+
+      opacity:
+        0.35;
+    }
+
+    .heatmap-cell.level-1 {
+      opacity:
+        0.25;
+    }
+
+    .heatmap-cell.level-2 {
+      opacity:
+        0.45;
+    }
+
+    .heatmap-cell.level-3 {
+      opacity:
+        0.7;
+    }
+
+    .heatmap-cell.level-4 {
+      opacity:
+        1;
+    }
+
+    .heatmap-placeholder {
+      width:
+        10px;
+
+      height:
+        10px;
+    }
+
+    .heatmap-footer {
+      display: flex;
+
+      align-items:
+        center;
+
+      justify-content:
+        space-between;
+
+      gap: 8px;
+
+      color:
+        var(
+          --vscode-descriptionForeground
+        );
+
+      font-size:
+        10px;
+    }
+
+    .heatmap-legend {
+      display: flex;
+
+      align-items:
+        center;
+
+      gap: 3px;
+    }
+
+    .legend-cell {
+      width:
+        9px;
+
+      height:
+        9px;
+
+      border-radius:
+        2px;
+
+      background:
+        var(
+          --vscode-charts-blue
+        );
+    }
+
+    .legend-cell.level-0 {
+      background:
+        var(
+          --vscode-widget-border
+        );
+
+      opacity:
+        0.35;
+    }
+
+    .legend-cell.level-1 {
+      opacity:
+        0.25;
+    }
+
+    .legend-cell.level-2 {
+      opacity:
+        0.45;
+    }
+
+    .legend-cell.level-3 {
+      opacity:
+        0.7;
+    }
+
+    .legend-cell.level-4 {
+      opacity:
+        1;
     }
 
     .empty-state {
@@ -605,7 +927,8 @@ export class StatisticsDashboardProvider
           --vscode-descriptionForeground
         );
 
-      font-size: 12px;
+      font-size:
+        12px;
     }
   </style>
 </head>
@@ -726,14 +1049,79 @@ export class StatisticsDashboardProvider
     <section
       class="section"
     >
+      <h2
+        class="section-title"
+      >
+        Streaks
+      </h2>
+
+      <div
+        class="streak-grid"
+      >
+        <div
+          class="streak-card"
+        >
+          <div
+            class="streak-label"
+          >
+            Current streak
+          </div>
+
+          <div
+            class="streak-value"
+            id="current-streak"
+          >
+            —
+          </div>
+
+          <div
+            class="streak-detail"
+            id="current-streak-detail"
+          ></div>
+        </div>
+
+        <div
+          class="streak-card"
+        >
+          <div
+            class="streak-label"
+          >
+            Longest streak
+          </div>
+
+          <div
+            class="streak-value"
+            id="longest-streak"
+          >
+            —
+          </div>
+
+          <div
+            class="streak-detail"
+            id="longest-streak-detail"
+          ></div>
+        </div>
+      </div>
+    </section>
+
+    <section
+      class="section"
+    >
       <div
         class="section-header"
       >
-        <h2
-          class="section-title"
-        >
-          Daily Activity
-        </h2>
+        <div>
+          <h2
+            class="section-title"
+          >
+            Daily Activity
+          </h2>
+
+          <div
+            class="section-context"
+            id="activity-context"
+          ></div>
+        </div>
 
         <button
           class="refresh-button"
@@ -801,6 +1189,74 @@ export class StatisticsDashboardProvider
         id="breakdown-ranking"
       ></div>
     </section>
+
+    <section
+      class="section"
+    >
+      <div>
+        <h2
+          class="section-title"
+        >
+          Coding Activity
+        </h2>
+
+        <div
+          class="section-context"
+        >
+          Last 365 days
+        </div>
+      </div>
+
+      <div
+        class="heatmap-scroll"
+        id="heatmap-scroll"
+      >
+        <div
+          class="heatmap"
+          id="heatmap"
+        ></div>
+      </div>
+
+      <div
+        class="heatmap-footer"
+      >
+        <span>
+          Daily coding time
+        </span>
+
+        <div
+          class="heatmap-legend"
+        >
+          <span>
+            Less
+          </span>
+
+          <span
+            class="legend-cell level-0"
+          ></span>
+
+          <span
+            class="legend-cell level-1"
+          ></span>
+
+          <span
+            class="legend-cell level-2"
+          ></span>
+
+          <span
+            class="legend-cell level-3"
+          ></span>
+
+          <span
+            class="legend-cell level-4"
+          ></span>
+
+          <span>
+            More
+          </span>
+        </div>
+      </div>
+    </section>
   </div>
 
   <script
@@ -853,6 +1309,31 @@ export class StatisticsDashboardProvider
         "best-day"
       );
 
+    const currentStreak =
+      document.getElementById(
+        "current-streak"
+      );
+
+    const currentStreakDetail =
+      document.getElementById(
+        "current-streak-detail"
+      );
+
+    const longestStreak =
+      document.getElementById(
+        "longest-streak"
+      );
+
+    const longestStreakDetail =
+      document.getElementById(
+        "longest-streak-detail"
+      );
+
+    const activityContext =
+      document.getElementById(
+        "activity-context"
+      );
+
     const activityChart =
       document.getElementById(
         "activity-chart"
@@ -861,6 +1342,16 @@ export class StatisticsDashboardProvider
     const breakdownRanking =
       document.getElementById(
         "breakdown-ranking"
+      );
+
+    const heatmap =
+      document.getElementById(
+        "heatmap"
+      );
+
+    const heatmapScroll =
+      document.getElementById(
+        "heatmap-scroll"
       );
 
     const refreshButton =
@@ -1012,18 +1503,69 @@ export class StatisticsDashboardProvider
         statistics.bestDay
       ) {
         bestDay.title =
-          statistics.bestDay.date;
+          formatFullDate(
+            statistics.bestDay.date
+          );
       } else {
         bestDay.removeAttribute(
           "title"
         );
       }
 
+      activityContext.textContent =
+        formatRangeContext(
+          statistics
+        );
+
+      renderStreaks(
+        dashboardData.streaks
+      );
+
       renderActivityChart(
         statistics.daily
       );
 
       renderBreakdown();
+
+      renderHeatmap(
+        dashboardData.heatmap
+      );
+    }
+
+    function renderStreaks(
+      streaks
+    ) {
+      if (!streaks) {
+        return;
+      }
+
+      currentStreak.textContent =
+        formatDays(
+          streaks.currentDays
+        );
+
+      longestStreak.textContent =
+        formatDays(
+          streaks.longestDays
+        );
+
+      currentStreakDetail.textContent =
+        formatStreakRange(
+          streaks.currentStartDate,
+          streaks.currentEndDate,
+        );
+
+      longestStreakDetail.textContent =
+        formatStreakRange(
+          streaks.longestStartDate,
+          streaks.longestEndDate,
+        );
+
+      currentStreak.title =
+        currentStreakDetail.textContent;
+
+      longestStreak.title =
+        longestStreakDetail.textContent;
     }
 
     function renderBreakdown() {
@@ -1120,9 +1662,14 @@ export class StatisticsDashboardProvider
         );
 
       for (
-        const day
-        of daily
+        let index = 0;
+        index <
+        daily.length;
+        index += 1
       ) {
+        const day =
+          daily[index];
+
         const column =
           document.createElement(
             "div"
@@ -1132,11 +1679,21 @@ export class StatisticsDashboardProvider
           "activity-column";
 
         column.title =
-          day.date +
+          formatFullDate(
+            day.date
+          ) +
           " — " +
           formatDuration(
             day.activeMilliseconds
           );
+
+        const barArea =
+          document.createElement(
+            "div"
+          );
+
+        barArea.className =
+          "activity-bar-area";
 
         const bar =
           document.createElement(
@@ -1145,6 +1702,15 @@ export class StatisticsDashboardProvider
 
         bar.className =
           "activity-bar";
+
+        if (
+          day.activeMilliseconds ===
+          0
+        ) {
+          bar.classList.add(
+            "zero"
+          );
+        }
 
         const percentage =
           day.activeMilliseconds > 0
@@ -1161,14 +1727,88 @@ export class StatisticsDashboardProvider
         bar.style.height =
           percentage + "%";
 
-        column.appendChild(
+        barArea.appendChild(
           bar
+        );
+
+        const label =
+          document.createElement(
+            "div"
+          );
+
+        label.className =
+          "activity-date-label";
+
+        if (
+          shouldShowDateLabel(
+            daily,
+            index,
+          )
+        ) {
+          label.textContent =
+            formatChartDate(
+              day.date,
+              daily.length,
+            );
+        }
+
+        column.append(
+          barArea,
+          label,
         );
 
         activityChart.appendChild(
           column
         );
       }
+    }
+
+    function shouldShowDateLabel(
+      daily,
+      index
+    ) {
+      const length =
+        daily.length;
+
+      if (
+        length <= 7
+      ) {
+        return true;
+      }
+
+      if (
+        length <= 31
+      ) {
+        return (
+          index === 0 ||
+          index ===
+            length - 1 ||
+          index % 7 === 0
+        );
+      }
+
+      if (
+        index === 0 ||
+        index ===
+          length - 1
+      ) {
+        return true;
+      }
+
+      const current =
+        parseLocalDate(
+          daily[index].date
+        );
+
+      const previous =
+        parseLocalDate(
+          daily[index - 1].date
+        );
+
+      return (
+        current.getMonth() !==
+        previous.getMonth()
+      );
     }
 
     function renderRanking(
@@ -1250,13 +1890,20 @@ export class StatisticsDashboardProvider
             formatLanguageName(
               item.name
             );
+        } else if (
+          mode === "files"
+        ) {
+          name.textContent =
+            getFileName(
+              item.name
+            );
         } else {
           name.textContent =
             item.name;
         }
 
         name.title =
-          name.textContent;
+          item.name;
 
         const value =
           document.createElement(
@@ -1319,6 +1966,334 @@ export class StatisticsDashboardProvider
           wrapper
         );
       }
+    }
+
+    function renderHeatmap(
+      daily
+    ) {
+      heatmap.replaceChildren();
+
+      if (
+        !daily ||
+        daily.length === 0
+      ) {
+        return;
+      }
+
+      const firstDate =
+        parseLocalDate(
+          daily[0].date
+        );
+
+      const leadingEmptyCells =
+        (
+          firstDate.getDay() +
+          6
+        ) %
+        7;
+
+      for (
+        let index = 0;
+        index <
+        leadingEmptyCells;
+        index += 1
+      ) {
+        const placeholder =
+          document.createElement(
+            "span"
+          );
+
+        placeholder.className =
+          "heatmap-placeholder";
+
+        heatmap.appendChild(
+          placeholder
+        );
+      }
+
+      const maximum =
+        Math.max(
+          ...daily.map(
+            (day) =>
+              day.activeMilliseconds
+          ),
+          1,
+        );
+
+      for (
+        const day
+        of daily
+      ) {
+        const cell =
+          document.createElement(
+            "span"
+          );
+
+        const level =
+          getHeatmapLevel(
+            day.activeMilliseconds,
+            maximum,
+          );
+
+        cell.className =
+          "heatmap-cell level-" +
+          level;
+
+        cell.title =
+          formatFullDate(
+            day.date
+          ) +
+          " — " +
+          formatDuration(
+            day.activeMilliseconds
+          );
+
+        heatmap.appendChild(
+          cell
+        );
+      }
+
+      requestAnimationFrame(
+        () => {
+          heatmapScroll.scrollLeft =
+            heatmapScroll.scrollWidth;
+        },
+      );
+    }
+
+    function getHeatmapLevel(
+      milliseconds,
+      maximum
+    ) {
+      if (
+        milliseconds <= 0
+      ) {
+        return 0;
+      }
+
+      const ratio =
+        milliseconds /
+        maximum;
+
+      if (
+        ratio <= 0.25
+      ) {
+        return 1;
+      }
+
+      if (
+        ratio <= 0.5
+      ) {
+        return 2;
+      }
+
+      if (
+        ratio <= 0.75
+      ) {
+        return 3;
+      }
+
+      return 4;
+    }
+
+    function formatRangeContext(
+      statistics
+    ) {
+      if (
+        !statistics.startDate ||
+        !statistics.endDate
+      ) {
+        return "";
+      }
+
+      if (
+        statistics.startDate ===
+        statistics.endDate
+      ) {
+        return formatFullDate(
+          statistics.startDate
+        );
+      }
+
+      return (
+        formatShortDate(
+          statistics.startDate
+        ) +
+        " – " +
+        formatShortDate(
+          statistics.endDate
+        )
+      );
+    }
+
+    function formatStreakRange(
+      startDate,
+      endDate
+    ) {
+      if (
+        !startDate ||
+        !endDate
+      ) {
+        return "No active streak";
+      }
+
+      if (
+        startDate ===
+        endDate
+      ) {
+        return formatShortDate(
+          startDate
+        );
+      }
+
+      return (
+        formatShortDate(
+          startDate
+        ) +
+        " – " +
+        formatShortDate(
+          endDate
+        )
+      );
+    }
+
+    function formatDays(
+      days
+    ) {
+      return (
+        days +
+        (
+          days === 1
+            ? " day"
+            : " days"
+        )
+      );
+    }
+
+    function formatChartDate(
+      date,
+      length
+    ) {
+      const value =
+        parseLocalDate(
+          date
+        );
+
+      if (
+        length <= 7
+      ) {
+        return value
+          .toLocaleDateString(
+            undefined,
+            {
+              weekday:
+                "short",
+            },
+          );
+      }
+
+      if (
+        length <= 31
+      ) {
+        return value
+          .toLocaleDateString(
+            undefined,
+            {
+              month:
+                "short",
+
+              day:
+                "numeric",
+            },
+          );
+      }
+
+      return value
+        .toLocaleDateString(
+          undefined,
+          {
+            month:
+              "short",
+          },
+        );
+    }
+
+    function formatFullDate(
+      date
+    ) {
+      return parseLocalDate(
+        date
+      ).toLocaleDateString(
+        undefined,
+        {
+          weekday:
+            "long",
+
+          year:
+            "numeric",
+
+          month:
+            "long",
+
+          day:
+            "numeric",
+        },
+      );
+    }
+
+    function formatShortDate(
+      date
+    ) {
+      return parseLocalDate(
+        date
+      ).toLocaleDateString(
+        undefined,
+        {
+          year:
+            "numeric",
+
+          month:
+            "short",
+
+          day:
+            "numeric",
+        },
+      );
+    }
+
+    function parseLocalDate(
+      date
+    ) {
+      const parts =
+        date
+          .split("-")
+          .map(Number);
+
+      return new Date(
+        parts[0],
+        parts[1] - 1,
+        parts[2],
+      );
+    }
+
+    function getFileName(
+      filePath
+    ) {
+      const normalized =
+        filePath.replace(
+          /\\\\/g,
+          "/",
+        );
+
+      const parts =
+        normalized.split(
+          "/"
+        );
+
+      return (
+        parts.at(-1) ??
+        filePath
+      );
     }
 
     function formatDuration(
