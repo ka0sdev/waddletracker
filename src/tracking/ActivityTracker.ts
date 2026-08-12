@@ -108,17 +108,40 @@ export class ActivityTracker
     }
   }
 
-  public getTodayStats(): DailyStats {
-    const date =
-      this.getLocalDateKey();
+public getTodayStats(): DailyStats {
+  const date =
+    this.getLocalDateKey();
 
-    return (
-      this.state.daily[date] ??
-      createEmptyDailyStats(
-        date,
-      )
-    );
-  }
+  return (
+    this.state.daily[date] ??
+    createEmptyDailyStats(
+      date,
+    )
+  );
+}
+
+public getDailyHistory():
+  readonly DailyStats[] {
+  return Object.values(
+    this.state.daily,
+  ).map(
+    (day) => ({
+      ...day,
+
+      projects: {
+        ...day.projects,
+      },
+
+      languages: {
+        ...day.languages,
+      },
+
+      files: {
+        ...day.files,
+      },
+    }),
+  );
+}
 
   public getCurrentContext(): ActivityContext {
     return {
