@@ -12,7 +12,7 @@
     "Other"
   ],
   "activationEvents": [
-  "onStartupFinished"
+    "onStartupFinished"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -20,6 +20,10 @@
       {
         "command": "waddletracker.showStatus",
         "title": "WaddleTracker: Show Status"
+      },
+      {
+        "command": "waddletracker.openSettings",
+        "title": "WaddleTracker: Open Settings"
       }
     ],
     "configuration": {
@@ -30,12 +34,28 @@
           "default": 5,
           "minimum": 1,
           "maximum": 60,
-          "description": "Number of minutes without editor activity before WaddleTracker considers you idle."
+          "markdownDescription": "Number of minutes without editor activity before WaddleTracker considers the current coding session idle.",
+          "order": 10
         },
         "waddleTracker.statusBar.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "Show today's tracked coding time in the VS Code status bar."
+          "markdownDescription": "Show WaddleTracker activity information in the VS Code status bar.",
+          "order": 20
+        },
+        "waddleTracker.statusBar.display": {
+          "type": "string",
+          "enum": [
+            "today",
+            "project"
+          ],
+          "enumDescriptions": [
+            "Display total tracked coding time for today.",
+            "Display the current project name alongside today's tracked time."
+          ],
+          "default": "today",
+          "markdownDescription": "Controls what WaddleTracker displays in the status bar.",
+          "order": 30
         }
       }
     }
