@@ -1,6 +1,8 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
+import { CodingSession } from "../types/CodingSession";
+
 import {
   createEmptyDailyStats,
   createEmptyTrackerState,
@@ -31,6 +33,24 @@ interface LegacyTrackerStateV2 {
     string,
     DailyStats
   >;
+}
+
+type LegacyCodingSessionV3 =
+  Omit<
+    CodingSession,
+    "languages" | "files"
+  >;
+
+interface LegacyTrackerStateV3 {
+  version: 3;
+
+  daily: Record<
+    string,
+    DailyStats
+  >;
+
+  sessions:
+    LegacyCodingSessionV3[];
 }
 
 export class JsonStorageProvider
@@ -142,9 +162,10 @@ export class JsonStorageProvider
       };
 
     if (
-      candidate.version === 3 &&
+      candidate.version === 4 &&
       candidate.daily &&
-      typeof candidate.daily === "object" &&
+      typeof candidate.daily ===
+        "object" &&
       Array.isArray(
         candidate.sessions,
       )
@@ -153,9 +174,24 @@ export class JsonStorageProvider
     }
 
     if (
+      candidate.version === 3 &&
+      candidate.daily &&
+      typeof candidate.daily ===
+        "object" &&
+      Array.isArray(
+        candidate.sessions,
+      )
+    ) {
+      return this.migrateV3(
+        value as LegacyTrackerStateV3,
+      );
+    }
+
+    if (
       candidate.version === 2 &&
       candidate.daily &&
-      typeof candidate.daily === "object"
+      typeof candidate.daily ===
+        "object"
     ) {
       return this.migrateV2(
         value as LegacyTrackerStateV2,
@@ -165,7 +201,8 @@ export class JsonStorageProvider
     if (
       candidate.version === 1 &&
       candidate.daily &&
-      typeof candidate.daily === "object"
+      typeof candidate.daily ===
+        "object"
     ) {
       return this.migrateV1(
         value as LegacyTrackerStateV1,
@@ -177,11 +214,35 @@ export class JsonStorageProvider
     );
   }
 
+  private migrateV3(
+    legacy: LegacyTrackerStateV3,
+  ): TrackerState {
+    return {
+      version: 4,
+
+      daily:
+        legacy.daily,
+
+      sessions:
+        legacy.sessions.map(
+          (
+            session,
+          ): CodingSession => ({
+            ...session,
+
+            languages: {},
+
+            files: {},
+          }),
+        ),
+    };
+  }
+
   private migrateV2(
     legacy: LegacyTrackerStateV2,
   ): TrackerState {
     return {
-      version: 3,
+      version: 4,
 
       daily:
         legacy.daily,
