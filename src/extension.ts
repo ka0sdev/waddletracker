@@ -122,15 +122,20 @@ export async function activate(
         const currentSession =
           activityTracker.getCurrentSession();
 
+        const exclusion =
+          activityTracker.getCurrentExclusion();
+
         const duration =
           formatDurationClock(
             stats.activeMilliseconds,
           );
 
         const activityState =
-          activityTracker.isActive()
-            ? "Active"
-            : "Idle";
+          exclusion
+            ? "Excluded"
+            : activityTracker.isActive()
+              ? "Active"
+              : "Idle";
 
         const details = [
           "WaddleTracker",
@@ -139,6 +144,14 @@ export async function activate(
 
           `Status: ${activityState}`,
         ];
+
+        if (
+          exclusion
+        ) {
+          details.push(
+            `Exclusion: ${exclusion.kind} (${exclusion.pattern})`,
+          );
+        }
 
         if (
           currentSession
@@ -191,14 +204,144 @@ export async function activate(
     vscode.commands.registerCommand(
       "waddletracker.refreshStatistics",
       async () => {
-        await currentActivityProvider
-          .refresh();
+        await refreshAllViews(
+          currentActivityProvider,
+          sessionHistoryProvider,
+          dashboardProvider,
+        );
+      },
+    );
 
-        sessionHistoryProvider
-          .refresh();
+  const excludeCurrentProjectCommand =
+    vscode.commands.registerCommand(
+      "waddletracker.excludeCurrentProject",
+      async () => {
+        if (
+          !activityTracker
+        ) {
+          return;
+        }
 
-        await dashboardProvider
-          .refresh();
+        const projectName =
+          activityTracker
+            .getCurrentContext()
+            .projectName;
+
+        if (
+          !projectName
+        ) {
+          await vscode.window
+            .showInformationMessage(
+              "WaddleTracker could not determine the current project.",
+            );
+
+          return;
+        }
+
+        const added =
+          await addTrackingExclusion(
+            "tracking.excludedProjects",
+            projectName,
+          );
+
+        if (
+          added
+        ) {
+          await vscode.window
+            .showInformationMessage(
+              `WaddleTracker will no longer track project "${projectName}".`,
+            );
+        }
+      },
+    );
+
+  const excludeCurrentFileCommand =
+    vscode.commands.registerCommand(
+      "waddletracker.excludeCurrentFile",
+      async () => {
+        if (
+          !activityTracker
+        ) {
+          return;
+        }
+
+        const filePath =
+          activityTracker
+            .getCurrentContext()
+            .filePath;
+
+        if (
+          !filePath
+        ) {
+          await vscode.window
+            .showInformationMessage(
+              "WaddleTracker could not determine the current file.",
+            );
+
+          return;
+        }
+
+        const added =
+          await addTrackingExclusion(
+            "tracking.excludedFiles",
+            filePath,
+          );
+
+        if (
+          added
+        ) {
+          await vscode.window
+            .showInformationMessage(
+              "WaddleTracker will no longer track the current file.",
+            );
+        }
+      },
+    );
+
+  const resetStatisticsCommand =
+    vscode.commands.registerCommand(
+      "waddletracker.resetStatistics",
+      async () => {
+        if (
+          !activityTracker
+        ) {
+          return;
+        }
+
+        const confirmation =
+          await vscode.window
+            .showWarningMessage(
+              "Reset all WaddleTracker statistics? This permanently removes all recorded daily statistics and coding-session history. Tracking will continue from the reset point.",
+              {
+                modal:
+                  true,
+
+                detail:
+                  "This action cannot be undone.",
+              },
+              "Reset Statistics",
+            );
+
+        if (
+          confirmation !==
+          "Reset Statistics"
+        ) {
+          return;
+        }
+
+        await activityTracker
+          .resetStatistics();
+
+        await refreshAllViews(
+          currentActivityProvider,
+          sessionHistoryProvider,
+          dashboardProvider,
+        );
+
+        await vscode.window
+          .showInformationMessage(
+            "WaddleTracker statistics have been reset.",
+          );
       },
     );
 
@@ -219,6 +362,9 @@ export async function activate(
     showStatusCommand,
     openSettingsCommand,
     refreshStatisticsCommand,
+    excludeCurrentProjectCommand,
+    excludeCurrentFileCommand,
+    resetStatisticsCommand,
   );
 
   activityTracker.start();
@@ -240,4 +386,68 @@ export async function deactivate():
 
   activityTracker =
     undefined;
+}
+
+async function addTrackingExclusion(
+  setting:
+    "tracking.excludedProjects" |
+    "tracking.excludedFiles",
+
+  value:
+    string,
+): Promise<boolean> {
+  const configuration =
+    vscode.workspace.getConfiguration(
+      "waddleTracker",
+    );
+
+  const currentValues =
+    configuration.get<string[]>(
+      setting,
+      [],
+    );
+
+  if (
+    currentValues.includes(
+      value,
+    )
+  ) {
+    await vscode.window
+      .showInformationMessage(
+        "This item is already excluded from WaddleTracker.",
+      );
+
+    return false;
+  }
+
+  await configuration.update(
+    setting,
+    [
+      ...currentValues,
+      value,
+    ],
+    vscode.ConfigurationTarget.Global,
+  );
+
+  return true;
+}
+
+async function refreshAllViews(
+  currentActivityProvider:
+    CurrentActivityProvider,
+
+  sessionHistoryProvider:
+    SessionHistoryTreeProvider,
+
+  dashboardProvider:
+    StatisticsDashboardProvider,
+): Promise<void> {
+  await currentActivityProvider
+    .refresh();
+
+  sessionHistoryProvider
+    .refresh();
+
+  await dashboardProvider
+    .refresh();
 }
