@@ -2,6 +2,10 @@ import * as vscode from "vscode";
 
 import { ActivityTracker } from "../tracking/ActivityTracker";
 
+import {
+  formatDurationClock,
+} from "../utils/formatters";
+
 type StatusBarDisplayMode =
   | "today"
   | "project"
@@ -86,12 +90,12 @@ export class StatusBarController
       this.tracker.getCurrentSession();
 
     const todayFormatted =
-      this.formatDuration(
+      formatDurationClock(
         stats.activeMilliseconds,
       );
 
     const sessionFormatted =
-      this.formatDuration(
+      formatDurationClock(
         currentSession
           ?.activeMilliseconds ??
           0,
@@ -175,75 +179,5 @@ export class StatusBarController
     }
 
     this.item.dispose();
-  }
-
-  private formatDuration(
-    milliseconds: number,
-  ): string {
-    const totalSeconds =
-      Math.floor(
-        milliseconds /
-          1000,
-      );
-
-    const hours =
-      Math.floor(
-        totalSeconds /
-          3600,
-      );
-
-    const minutes =
-      Math.floor(
-        (
-          totalSeconds %
-          3600
-        ) /
-          60,
-      );
-
-    const seconds =
-      totalSeconds %
-      60;
-
-    if (
-      hours > 0
-    ) {
-      return [
-        String(
-          hours,
-        ),
-
-        String(
-          minutes,
-        ).padStart(
-          2,
-          "0",
-        ),
-
-        String(
-          seconds,
-        ).padStart(
-          2,
-          "0",
-        ),
-      ].join(
-        ":",
-      );
-    }
-
-    return [
-      String(
-        minutes,
-      ),
-
-      String(
-        seconds,
-      ).padStart(
-        2,
-        "0",
-      ),
-    ].join(
-      ":",
-    );
   }
 }
