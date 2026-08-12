@@ -1,3 +1,5 @@
+import { CodingSession } from "./CodingSession";
+
 export interface DailyDimensionStats {
   activeMilliseconds: number;
 }
@@ -24,12 +26,14 @@ export interface DailyStats {
 }
 
 export interface TrackerState {
-  version: 2;
+  version: 3;
 
   daily: Record<
     string,
     DailyStats
   >;
+
+  sessions: CodingSession[];
 }
 
 export function createEmptyDailyStats(
@@ -48,7 +52,10 @@ export function createEmptyDailyStats(
 
 export function createEmptyTrackerState(): TrackerState {
   return {
-    version: 2,
+    version: 3,
+
     daily: {},
+
+    sessions: [],
   };
 }
