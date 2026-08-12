@@ -1,3 +1,5 @@
+import * as path from "node:path";
+
 import * as vscode from "vscode";
 
 import { SessionHistoryService } from "../sessions/SessionHistoryService";
@@ -8,10 +10,14 @@ import {
 
 import { ActivityTracker } from "../tracking/ActivityTracker";
 
-import { CodingSession } from "../types/CodingSession";
+import {
+  CodingSession,
+  SessionDimensionStats,
+} from "../types/CodingSession";
 
 import {
   formatDuration,
+  formatLanguageName,
 } from "../utils/formatters";
 
 const PERIODIC_REFRESH_INTERVAL_MS =
@@ -20,13 +26,17 @@ const PERIODIC_REFRESH_INTERVAL_MS =
 type SessionHistoryNodeKind =
   | "date"
   | "session"
+  | "dimensionGroup"
+  | "language"
+  | "file"
   | "empty";
 
 interface SessionHistoryNode {
   kind:
     SessionHistoryNodeKind;
 
-  label: string;
+  label:
+    string;
 
   description?:
     string;
@@ -36,6 +46,9 @@ interface SessionHistoryNode {
 
   icon?:
     string;
+
+  command?:
+    vscode.Command;
 
   children?:
     SessionHistoryNode[];
@@ -56,6 +69,17 @@ interface SessionHistorySnapshot {
   lastSessionEndedAt:
     | string
     | undefined;
+}
+
+interface DimensionEntry {
+  name:
+    string;
+
+  activeMilliseconds:
+    number;
+
+  percentage:
+    number;
 }
 
 export class SessionHistoryTreeProvider
@@ -125,13 +149,28 @@ export class SessionHistoryTreeProvider
         element.children?.length,
       );
 
+    let collapsibleState =
+      vscode.TreeItemCollapsibleState.None;
+
+    if (
+      hasChildren
+    ) {
+      if (
+        element.kind ===
+        "date"
+      ) {
+        collapsibleState =
+          vscode.TreeItemCollapsibleState.Expanded;
+      } else {
+        collapsibleState =
+          vscode.TreeItemCollapsibleState.Collapsed;
+      }
+    }
+
     const item =
       new vscode.TreeItem(
         element.label,
-
-        hasChildren
-          ? vscode.TreeItemCollapsibleState.Expanded
-          : vscode.TreeItemCollapsibleState.None,
+        collapsibleState,
       );
 
     item.description =
@@ -140,6 +179,9 @@ export class SessionHistoryTreeProvider
     item.tooltip =
       element.tooltip ??
       element.label;
+
+    item.command =
+      element.command;
 
     if (
       element.icon
@@ -273,7 +315,8 @@ export class SessionHistoryTreeProvider
     ) {
       return [
         {
-          kind: "empty",
+          kind:
+            "empty",
 
           label:
             "No sessions recorded yet",
@@ -308,7 +351,8 @@ export class SessionHistoryTreeProvider
         : `${sessionCount} sessions`;
 
     return {
-      kind: "date",
+      kind:
+        "date",
 
       label:
         this.formatDateLabel(
@@ -373,6 +417,41 @@ export class SessionHistoryTreeProvider
         ? session.remoteName
         : "Local";
 
+    const languages =
+      this.getDimensionEntries(
+        session.languages,
+        session.activeMilliseconds,
+      );
+
+    const files =
+      this.getDimensionEntries(
+        session.files,
+        session.activeMilliseconds,
+      );
+
+    const children:
+      SessionHistoryNode[] = [];
+
+    if (
+      languages.length > 0
+    ) {
+      children.push(
+        this.createLanguageGroupNode(
+          languages,
+        ),
+      );
+    }
+
+    if (
+      files.length > 0
+    ) {
+      children.push(
+        this.createFileGroupNode(
+          files,
+        ),
+      );
+    }
+
     const lines = [
       `Project: ${project}`,
 
@@ -393,8 +472,34 @@ export class SessionHistoryTreeProvider
       `Environment: ${environment}`,
     ];
 
+    if (
+      languages.length > 0
+    ) {
+      lines.push(
+        `Languages: ${languages.length}`,
+      );
+    }
+
+    if (
+      files.length > 0
+    ) {
+      lines.push(
+        `Files: ${files.length}`,
+      );
+    }
+
+    if (
+      languages.length === 0 &&
+      files.length === 0
+    ) {
+      lines.push(
+        "Detailed activity: Not recorded",
+      );
+    }
+
     return {
-      kind: "session",
+      kind:
+        "session",
 
       label:
         project,
@@ -411,7 +516,290 @@ export class SessionHistoryTreeProvider
         active
           ? "pulse"
           : "history",
+
+      children,
     };
+  }
+
+  private createLanguageGroupNode(
+    languages:
+      readonly DimensionEntry[],
+  ): SessionHistoryNode {
+    const totalMilliseconds =
+      languages.reduce(
+        (
+          total,
+          language,
+        ) =>
+          total +
+          language.activeMilliseconds,
+        0,
+      );
+
+    return {
+      kind:
+        "dimensionGroup",
+
+      label:
+        "Languages",
+
+      description:
+        `${languages.length} ${
+          languages.length === 1
+            ? "language"
+            : "languages"
+        } • ${formatDuration(
+          totalMilliseconds,
+        )}`,
+
+      tooltip:
+        [
+          `${languages.length} ${
+            languages.length === 1
+              ? "language"
+              : "languages"
+          }`,
+
+          `Tracked time: ${formatDuration(
+            totalMilliseconds,
+          )}`,
+        ].join(
+          "\n",
+        ),
+
+      icon:
+        "code",
+
+      children:
+        languages.map(
+          (language) =>
+            this.createLanguageNode(
+              language,
+            ),
+        ),
+    };
+  }
+
+  private createLanguageNode(
+    language:
+      DimensionEntry,
+  ): SessionHistoryNode {
+    const languageName =
+      formatLanguageName(
+        language.name,
+      );
+
+    return {
+      kind:
+        "language",
+
+      label:
+        languageName,
+
+      description:
+        `${formatDuration(
+          language.activeMilliseconds,
+        )} • ${this.formatPercentage(
+          language.percentage,
+        )}`,
+
+      tooltip:
+        [
+          languageName,
+
+          `Active time: ${formatDuration(
+            language.activeMilliseconds,
+          )}`,
+
+          `Session share: ${this.formatPercentage(
+            language.percentage,
+          )}`,
+        ].join(
+          "\n",
+        ),
+
+      icon:
+        "symbol-keyword",
+    };
+  }
+
+  private createFileGroupNode(
+    files:
+      readonly DimensionEntry[],
+  ): SessionHistoryNode {
+    const totalMilliseconds =
+      files.reduce(
+        (
+          total,
+          file,
+        ) =>
+          total +
+          file.activeMilliseconds,
+        0,
+      );
+
+    return {
+      kind:
+        "dimensionGroup",
+
+      label:
+        "Files",
+
+      description:
+        `${files.length} ${
+          files.length === 1
+            ? "file"
+            : "files"
+        } • ${formatDuration(
+          totalMilliseconds,
+        )}`,
+
+      tooltip:
+        [
+          `${files.length} ${
+            files.length === 1
+              ? "file"
+              : "files"
+          }`,
+
+          `Tracked time: ${formatDuration(
+            totalMilliseconds,
+          )}`,
+        ].join(
+          "\n",
+        ),
+
+      icon:
+        "files",
+
+      children:
+        files.map(
+          (file) =>
+            this.createFileNode(
+              file,
+            ),
+        ),
+    };
+  }
+
+  private createFileNode(
+    file:
+      DimensionEntry,
+  ): SessionHistoryNode {
+    const fileName =
+      path.basename(
+        file.name,
+      );
+
+    return {
+      kind:
+        "file",
+
+      label:
+        fileName,
+
+      description:
+        `${formatDuration(
+          file.activeMilliseconds,
+        )} • ${this.formatPercentage(
+          file.percentage,
+        )}`,
+
+      tooltip:
+        [
+          file.name,
+
+          `Active time: ${formatDuration(
+            file.activeMilliseconds,
+          )}`,
+
+          `Session share: ${this.formatPercentage(
+            file.percentage,
+          )}`,
+
+          "Click to open file",
+        ].join(
+          "\n",
+        ),
+
+      icon:
+        "file-code",
+
+      command: {
+        command:
+          "vscode.open",
+
+        title:
+          "Open File",
+
+        arguments: [
+          vscode.Uri.file(
+            file.name,
+          ),
+        ],
+      },
+    };
+  }
+
+  private getDimensionEntries(
+    dimensions:
+      Record<
+        string,
+        SessionDimensionStats
+      >,
+
+    sessionMilliseconds:
+      number,
+  ): DimensionEntry[] {
+    return Object.entries(
+      dimensions,
+    )
+      .map(
+        (
+          [
+            name,
+            statistics,
+          ],
+        ): DimensionEntry => ({
+          name,
+
+          activeMilliseconds:
+            statistics.activeMilliseconds,
+
+          percentage:
+            sessionMilliseconds > 0
+              ? (
+                  statistics.activeMilliseconds /
+                  sessionMilliseconds
+                ) *
+                100
+              : 0,
+        }),
+      )
+      .sort(
+        (
+          first,
+          second,
+        ) =>
+          second.activeMilliseconds -
+          first.activeMilliseconds,
+      );
+  }
+
+  private formatPercentage(
+    percentage:
+      number,
+  ): string {
+    if (
+      percentage > 0 &&
+      percentage < 1
+    ) {
+      return "<1%";
+    }
+
+    return `${Math.round(
+      percentage,
+    )}%`;
   }
 
   private formatDateLabel(
