@@ -45,8 +45,13 @@
     "views": {
       "waddletracker": [
         {
-          "id": "waddletracker.statistics",
+          "type": "webview",
+          "id": "waddletracker.currentActivity",
           "name": "Current Activity"
+        },
+        {
+          "id": "waddletracker.sessionHistory",
+          "name": "Session History"
         },
         {
           "type": "webview",
@@ -59,12 +64,32 @@
       "view/title": [
         {
           "command": "waddletracker.refreshStatistics",
-          "when": "view == waddletracker.statistics",
+          "when": "view == waddletracker.currentActivity",
           "group": "navigation@1"
         },
         {
           "command": "waddletracker.openSettings",
-          "when": "view == waddletracker.statistics",
+          "when": "view == waddletracker.currentActivity",
+          "group": "navigation@2"
+        },
+        {
+          "command": "waddletracker.refreshStatistics",
+          "when": "view == waddletracker.sessionHistory",
+          "group": "navigation@1"
+        },
+        {
+          "command": "waddletracker.openSettings",
+          "when": "view == waddletracker.sessionHistory",
+          "group": "navigation@2"
+        },
+        {
+          "command": "waddletracker.refreshStatistics",
+          "when": "view == waddletracker.dashboard",
+          "group": "navigation@1"
+        },
+        {
+          "command": "waddletracker.openSettings",
+          "when": "view == waddletracker.dashboard",
           "group": "navigation@2"
         }
       ]
@@ -101,14 +126,6 @@
           "default": "today",
           "markdownDescription": "Controls what WaddleTracker displays in the status bar.",
           "order": 30
-        },
-        "waddleTracker.sidebar.recentSessions": {
-          "type": "integer",
-          "default": 5,
-          "minimum": 1,
-          "maximum": 20,
-          "markdownDescription": "Number of recent coding sessions displayed in the WaddleTracker sidebar.",
-          "order": 40
         }
       }
     }
