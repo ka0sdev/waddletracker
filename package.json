@@ -1,0 +1,54 @@
+{
+  "name": "waddletracker",
+  "displayName": "WaddleTracker",
+  "description": "Local-first developer activity tracking for Visual Studio Code.",
+  "version": "0.0.1",
+  "publisher": "ka0sdev",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+  "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "waddletracker.showStatus",
+        "title": "WaddleTracker: Show Status"
+      }
+    ],
+    "configuration": {
+      "title": "WaddleTracker",
+      "properties": {
+        "waddleTracker.idleTimeoutMinutes": {
+          "type": "number",
+          "default": 5,
+          "minimum": 1,
+          "maximum": 60,
+          "description": "Number of minutes without editor activity before WaddleTracker considers you idle."
+        },
+        "waddleTracker.statusBar.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show today's tracked coding time in the VS Code status bar."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "node esbuild.js",
+    "watch": "node esbuild.js --watch",
+    "check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "@types/vscode": "^1.100.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^7.0.0"
+  }
+}
