@@ -2,13 +2,17 @@ import * as vscode from "vscode";
 
 import { JsonStorageProvider } from "./storage/JsonStorageProvider";
 
+import { StatisticsService } from "./statistics/StatisticsService";
+
 import { ActivityTracker } from "./tracking/ActivityTracker";
 import { ContextResolver } from "./tracking/ContextResolver";
 
 import { StatisticsTreeProvider } from "./ui/StatisticsTreeProvider";
 import { StatusBarController } from "./ui/StatusBarController";
 
-import { formatDurationClock } from "./utils/formatters";
+import {
+  formatDurationClock,
+} from "./utils/formatters";
 
 let activityTracker:
   ActivityTracker | undefined;
@@ -29,6 +33,9 @@ export async function activate(
   const contextResolver =
     new ContextResolver();
 
+  const statisticsService =
+    new StatisticsService();
+
   activityTracker =
     new ActivityTracker(
       storage,
@@ -44,6 +51,7 @@ export async function activate(
   const statisticsProvider =
     new StatisticsTreeProvider(
       activityTracker,
+      statisticsService,
     );
 
   const statisticsView =
