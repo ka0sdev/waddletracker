@@ -24,15 +24,47 @@
       {
         "command": "waddletracker.openSettings",
         "title": "WaddleTracker: Open Settings"
+      },
+      {
+        "command": "waddletracker.refreshStatistics",
+        "title": "Refresh",
+        "category": "WaddleTracker",
+        "icon": "$(refresh)"
       }
     ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "waddletracker",
+          "title": "WaddleTracker",
+          "icon": "resources/waddletracker.svg"
+        }
+      ]
+    },
+    "views": {
+      "waddletracker": [
+        {
+          "id": "waddletracker.statistics",
+          "name": "Coding Statistics"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "waddletracker.refreshStatistics",
+          "when": "view == waddletracker.statistics",
+          "group": "navigation"
+        }
+      ]
+    },
     "configuration": {
       "title": "WaddleTracker",
       "properties": {
         "waddleTracker.idleTimeoutMinutes": {
           "type": "number",
-          "default": 0.1,
-          "minimum": 0.05,
+          "default": 5,
+          "minimum": 1,
           "maximum": 60,
           "markdownDescription": "Number of minutes without editor activity before WaddleTracker considers the current coding session idle.",
           "order": 10
@@ -58,7 +90,7 @@
           "default": "today",
           "markdownDescription": "Controls what WaddleTracker displays in the status bar.",
           "order": 30
-        }        
+        }
       }
     }
   },
