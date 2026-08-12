@@ -7,6 +7,7 @@ import { StatisticsService } from "./statistics/StatisticsService";
 import { ActivityTracker } from "./tracking/ActivityTracker";
 import { ContextResolver } from "./tracking/ContextResolver";
 
+import { StatisticsDashboardProvider } from "./ui/StatisticsDashboardProvider";
 import { StatisticsTreeProvider } from "./ui/StatisticsTreeProvider";
 import { StatusBarController } from "./ui/StatusBarController";
 
@@ -66,6 +67,20 @@ export async function activate(
       },
     );
 
+  const dashboardProvider =
+    new StatisticsDashboardProvider(
+      activityTracker,
+      statisticsService,
+    );
+
+  const dashboardRegistration =
+    vscode.window
+      .registerWebviewViewProvider(
+        StatisticsDashboardProvider
+          .viewType,
+        dashboardProvider,
+      );
+
   const showStatusCommand =
     vscode.commands.registerCommand(
       "waddletracker.showStatus",
@@ -99,7 +114,9 @@ export async function activate(
           `Status: ${activityState}`,
         ];
 
-        if (currentSession) {
+        if (
+          currentSession
+        ) {
           details.push(
             `Session: ${formatDurationClock(
               currentSession.activeMilliseconds,
@@ -123,11 +140,12 @@ export async function activate(
           );
         }
 
-        await vscode.window.showInformationMessage(
-          details.join(
-            " • ",
-          ),
-        );
+        await vscode.window
+          .showInformationMessage(
+            details.join(
+              " • ",
+            ),
+          );
       },
     );
 
@@ -135,26 +153,34 @@ export async function activate(
     vscode.commands.registerCommand(
       "waddletracker.openSettings",
       async () => {
-        await vscode.commands.executeCommand(
-          "workbench.action.openSettings",
-          "@ext:ka0sdev.waddletracker",
-        );
+        await vscode.commands
+          .executeCommand(
+            "workbench.action.openSettings",
+            "@ext:ka0sdev.waddletracker",
+          );
       },
     );
 
   const refreshStatisticsCommand =
     vscode.commands.registerCommand(
       "waddletracker.refreshStatistics",
-      () => {
+      async () => {
         statisticsProvider.refresh();
+
+        await dashboardProvider.refresh();
       },
     );
 
   context.subscriptions.push(
     activityTracker,
     statusBar,
+
     statisticsProvider,
     statisticsView,
+
+    dashboardProvider,
+    dashboardRegistration,
+
     showStatusCommand,
     openSettingsCommand,
     refreshStatisticsCommand,
@@ -167,7 +193,8 @@ export async function activate(
   );
 }
 
-export async function deactivate(): Promise<void> {
+export async function deactivate():
+  Promise<void> {
   if (!activityTracker) {
     return;
   }
