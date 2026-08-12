@@ -1,5 +1,8 @@
 import * as vscode from "vscode";
 
+import { StatisticsService } from "../statistics/StatisticsService";
+import { HistoricalStatistics } from "../types/StatisticsTypes";
+
 import { ActivityTracker } from "../tracking/ActivityTracker";
 
 import { CodingSession } from "../types/CodingSession";
@@ -14,6 +17,9 @@ import {
   formatLanguageName,
   formatPercentage,
 } from "../utils/formatters";
+
+const PERIODIC_REFRESH_INTERVAL_MS =
+  30_000;
 
 type StatisticsNodeKind =
   | "section"
@@ -34,6 +40,22 @@ interface StatisticsNode {
   children?: StatisticsNode[];
 }
 
+interface TrackerSnapshot {
+  active: boolean;
+
+  projectName:
+    | string
+    | undefined;
+
+  languageId:
+    | string
+    | undefined;
+
+  sessionId:
+    | string
+    | undefined;
+}
+
 export class StatisticsTreeProvider
   implements
     vscode.TreeDataProvider<StatisticsNode>,
@@ -50,14 +72,26 @@ export class StatisticsTreeProvider
   private readonly disposables:
     vscode.Disposable[] = [];
 
+  private periodicRefreshTimer:
+    NodeJS.Timeout | undefined;
+
+  private lastSnapshot:
+    TrackerSnapshot;
+
   constructor(
     private readonly tracker:
       ActivityTracker,
+
+    private readonly statisticsService:
+      StatisticsService,
   ) {
+    this.lastSnapshot =
+      this.createTrackerSnapshot();
+
     this.disposables.push(
       this.tracker.onDidUpdate(
         () => {
-          this.refresh();
+          this.handleTrackerUpdate();
         },
       ),
 
@@ -73,9 +107,14 @@ export class StatisticsTreeProvider
         },
       ),
     );
+
+    this.startPeriodicRefresh();
   }
 
   public refresh(): void {
+    this.lastSnapshot =
+      this.createTrackerSnapshot();
+
     this.onDidChangeTreeDataEmitter.fire();
   }
 
@@ -126,6 +165,17 @@ export class StatisticsTreeProvider
   }
 
   public dispose(): void {
+    if (
+      this.periodicRefreshTimer
+    ) {
+      clearInterval(
+        this.periodicRefreshTimer,
+      );
+
+      this.periodicRefreshTimer =
+        undefined;
+    }
+
     for (
       const disposable
       of this.disposables
@@ -134,6 +184,72 @@ export class StatisticsTreeProvider
     }
 
     this.onDidChangeTreeDataEmitter.dispose();
+  }
+
+  private handleTrackerUpdate(): void {
+    const currentSnapshot =
+      this.createTrackerSnapshot();
+
+    if (
+      !this.snapshotsEqual(
+        this.lastSnapshot,
+        currentSnapshot,
+      )
+    ) {
+      this.lastSnapshot =
+        currentSnapshot;
+
+      this.onDidChangeTreeDataEmitter.fire();
+    }
+  }
+
+  private startPeriodicRefresh(): void {
+    this.periodicRefreshTimer =
+      setInterval(
+        () => {
+          this.refresh();
+        },
+        PERIODIC_REFRESH_INTERVAL_MS,
+      );
+  }
+
+  private createTrackerSnapshot():
+    TrackerSnapshot {
+    const context =
+      this.tracker.getCurrentContext();
+
+    const session =
+      this.tracker.getCurrentSession();
+
+    return {
+      active:
+        this.tracker.isActive(),
+
+      projectName:
+        context.projectName,
+
+      languageId:
+        context.languageId,
+
+      sessionId:
+        session?.id,
+    };
+  }
+
+  private snapshotsEqual(
+    first: TrackerSnapshot,
+    second: TrackerSnapshot,
+  ): boolean {
+    return (
+      first.active ===
+        second.active &&
+      first.projectName ===
+        second.projectName &&
+      first.languageId ===
+        second.languageId &&
+      first.sessionId ===
+        second.sessionId
+    );
   }
 
   private getRootNodes():
@@ -154,6 +270,8 @@ export class StatisticsTreeProvider
         context.projectName,
         context.languageId,
       ),
+
+      this.createHistoricalSection(),
 
       this.createProjectsSection(
         stats,
@@ -244,6 +362,80 @@ export class StatisticsTreeProvider
       label: "Overview",
       icon: "dashboard",
       children,
+    };
+  }
+
+  private createHistoricalSection():
+    StatisticsNode {
+    const history =
+      this.tracker.getDailyHistory();
+
+    const sevenDays =
+      this.statisticsService.getStatistics(
+        history,
+        "7days",
+      );
+
+    const thirtyDays =
+      this.statisticsService.getStatistics(
+        history,
+        "30days",
+      );
+
+    const allTime =
+      this.statisticsService.getStatistics(
+        history,
+        "all",
+      );
+
+    return {
+      kind: "section",
+      label: "History",
+      icon: "graph",
+
+      children: [
+        {
+          kind: "stat",
+          label: "Last 7 days",
+          description:
+            formatDuration(
+              sevenDays.activeMilliseconds,
+            ),
+          tooltip:
+            this.createHistoricalTooltip(
+              sevenDays,
+            ),
+          icon: "calendar",
+        },
+
+        {
+          kind: "stat",
+          label: "Last 30 days",
+          description:
+            formatDuration(
+              thirtyDays.activeMilliseconds,
+            ),
+          tooltip:
+            this.createHistoricalTooltip(
+              thirtyDays,
+            ),
+          icon: "calendar",
+        },
+
+        {
+          kind: "stat",
+          label: "All time",
+          description:
+            formatDuration(
+              allTime.activeMilliseconds,
+            ),
+          tooltip:
+            this.createHistoricalTooltip(
+              allTime,
+            ),
+          icon: "history",
+        },
+      ],
     };
   }
 
@@ -467,18 +659,25 @@ export class StatisticsTreeProvider
               totalMilliseconds,
             );
 
+          const displayName =
+            kind === "language"
+              ? formatLanguageName(
+                  name,
+                )
+              : name;
+
           return {
             kind,
 
             label:
-              name,
+              displayName,
 
             description:
               `${duration} • ${percentage}`,
 
             tooltip:
               [
-                name,
+                displayName,
                 `Time: ${duration}`,
                 `Share of today: ${percentage}`,
               ].join(
@@ -489,6 +688,55 @@ export class StatisticsTreeProvider
           };
         },
       );
+  }
+
+  private createHistoricalTooltip(
+    statistics:
+      HistoricalStatistics,
+  ): string {
+    const lines = [
+      `Total: ${formatDuration(
+        statistics.activeMilliseconds,
+      )}`,
+
+      `Active days: ${statistics.activeDays}`,
+
+      `Average: ${formatDuration(
+        statistics.averageActiveMilliseconds,
+      )} per active day`,
+    ];
+
+    if (
+      statistics.bestDay
+    ) {
+      lines.push(
+        `Best day: ${statistics.bestDay.date} (${formatDuration(
+          statistics.bestDay.activeMilliseconds,
+        )})`,
+      );
+    }
+
+    if (
+      statistics.projects[0]
+    ) {
+      lines.push(
+        `Top project: ${statistics.projects[0].name}`,
+      );
+    }
+
+    if (
+      statistics.languages[0]
+    ) {
+      lines.push(
+        `Top language: ${formatLanguageName(
+          statistics.languages[0].name,
+        )}`,
+      );
+    }
+
+    return lines.join(
+      "\n",
+    );
   }
 
   private getRecentSessionLimit():
@@ -529,9 +777,7 @@ export class StatisticsTreeProvider
       );
 
     if (!ended) {
-      return (
-        `${startLabel} → now`
-      );
+      return `${startLabel} → now`;
     }
 
     const endLabel =
