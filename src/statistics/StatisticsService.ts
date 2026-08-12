@@ -9,18 +9,32 @@ import {
   HistoricalStatistics,
   StatisticsDimension,
   StatisticsRange,
+  StreakStatistics,
 } from "../types/StatisticsTypes";
+
+interface DateRange {
+  startDate: string;
+  endDate: string;
+}
 
 export class StatisticsService {
   public getStatistics(
     dailyStats: readonly DailyStats[],
     range: StatisticsRange,
   ): HistoricalStatistics {
-    const selectedDays =
-      this.selectRange(
+    const bounds =
+      this.getRangeBounds(
         dailyStats,
         range,
       );
+
+    const selectedDays =
+      bounds
+        ? this.selectDays(
+            dailyStats,
+            bounds,
+          )
+        : [];
 
     const activeMilliseconds =
       selectedDays.reduce(
@@ -48,44 +62,44 @@ export class StatisticsService {
     const projects =
       this.aggregateDimensions(
         selectedDays,
-        (day) => day.projects,
+        (day) =>
+          day.projects,
         activeMilliseconds,
       );
 
     const languages =
       this.aggregateDimensions(
         selectedDays,
-        (day) => day.languages,
+        (day) =>
+          day.languages,
         activeMilliseconds,
       );
 
     const files =
       this.aggregateDimensions(
         selectedDays,
-        (day) => day.files,
+        (day) =>
+          day.files,
         activeMilliseconds,
       );
 
     const daily =
-      selectedDays.map(
-        (
-          day,
-        ): DailyActivityPoint => ({
-          date: day.date,
-
-          activeMilliseconds:
-            day.activeMilliseconds,
-        }),
-      );
+      bounds
+        ? this.buildDailySeries(
+            dailyStats,
+            bounds.startDate,
+            bounds.endDate,
+          )
+        : [];
 
     return {
       range,
 
       startDate:
-        selectedDays.at(0)?.date,
+        bounds?.startDate,
 
       endDate:
-        selectedDays.at(-1)?.date,
+        bounds?.endDate,
 
       activeMilliseconds,
 
@@ -108,52 +122,282 @@ export class StatisticsService {
     };
   }
 
-  private selectRange(
+  public getCalendarActivity(
     dailyStats: readonly DailyStats[],
-    range: StatisticsRange,
-  ): DailyStats[] {
-    const sorted =
-      [...dailyStats].sort(
-        (first, second) =>
-          first.date.localeCompare(
-            second.date,
-          ),
+    dayCount = 365,
+  ): DailyActivityPoint[] {
+    const safeDayCount =
+      Math.max(
+        1,
+        Math.min(
+          dayCount,
+          3660,
+        ),
       );
 
+    const today =
+      this.getLocalDateKey();
+
+    const startDate =
+      this.shiftLocalDate(
+        today,
+        -(safeDayCount - 1),
+      );
+
+    return this.buildDailySeries(
+      dailyStats,
+      startDate,
+      today,
+    );
+  }
+
+  public getStreakStatistics(
+    dailyStats: readonly DailyStats[],
+  ): StreakStatistics {
+    const today =
+      this.getLocalDateKey();
+
+    const activeDates =
+      dailyStats
+        .filter(
+          (day) =>
+            day.activeMilliseconds >
+              0 &&
+            day.date <= today,
+        )
+        .map(
+          (day) =>
+            day.date,
+        )
+        .sort(
+          (
+            first,
+            second,
+          ) =>
+            first.localeCompare(
+              second,
+            ),
+        );
+
     if (
-      range === "all"
+      activeDates.length === 0
     ) {
-      return sorted;
+      return {
+        currentDays: 0,
+        longestDays: 0,
+
+        currentStartDate:
+          undefined,
+
+        currentEndDate:
+          undefined,
+
+        longestStartDate:
+          undefined,
+
+        longestEndDate:
+          undefined,
+      };
     }
 
+    const activeDateSet =
+      new Set(
+        activeDates,
+      );
+
+    const current =
+      this.getCurrentStreak(
+        activeDateSet,
+        today,
+      );
+
+    const longest =
+      this.getLongestStreak(
+        activeDates,
+      );
+
+    return {
+      currentDays:
+        current.days,
+
+      longestDays:
+        longest.days,
+
+      currentStartDate:
+        current.startDate,
+
+      currentEndDate:
+        current.endDate,
+
+      longestStartDate:
+        longest.startDate,
+
+      longestEndDate:
+        longest.endDate,
+    };
+  }
+
+  private getRangeBounds(
+    dailyStats: readonly DailyStats[],
+    range: StatisticsRange,
+  ):
+    | DateRange
+    | undefined {
     const today =
       this.getLocalDateKey();
 
     if (
       range === "today"
     ) {
-      return sorted.filter(
+      return {
+        startDate:
+          today,
+
+        endDate:
+          today,
+      };
+    }
+
+    if (
+      range === "7days"
+    ) {
+      return {
+        startDate:
+          this.shiftLocalDate(
+            today,
+            -6,
+          ),
+
+        endDate:
+          today,
+      };
+    }
+
+    if (
+      range === "30days"
+    ) {
+      return {
+        startDate:
+          this.shiftLocalDate(
+            today,
+            -29,
+          ),
+
+        endDate:
+          today,
+      };
+    }
+
+    const validDates =
+      dailyStats
+        .filter(
+          (day) =>
+            day.date <= today,
+        )
+        .map(
+          (day) =>
+            day.date,
+        )
+        .sort(
+          (
+            first,
+            second,
+          ) =>
+            first.localeCompare(
+              second,
+            ),
+        );
+
+    const firstDate =
+      validDates.at(
+        0,
+      );
+
+    if (!firstDate) {
+      return undefined;
+    }
+
+    return {
+      startDate:
+        firstDate,
+
+      endDate:
+        today,
+    };
+  }
+
+  private selectDays(
+    dailyStats: readonly DailyStats[],
+    range: DateRange,
+  ): DailyStats[] {
+    return [...dailyStats]
+      .filter(
         (day) =>
-          day.date === today,
+          day.date >=
+            range.startDate &&
+          day.date <=
+            range.endDate,
+      )
+      .sort(
+        (
+          first,
+          second,
+        ) =>
+          first.date.localeCompare(
+            second.date,
+          ),
+      );
+  }
+
+  private buildDailySeries(
+    dailyStats: readonly DailyStats[],
+    startDate: string,
+    endDate: string,
+  ): DailyActivityPoint[] {
+    const lookup =
+      new Map<
+        string,
+        number
+      >();
+
+    for (
+      const day
+      of dailyStats
+    ) {
+      lookup.set(
+        day.date,
+        day.activeMilliseconds,
       );
     }
 
-    const dayCount =
-      range === "7days"
-        ? 7
-        : 30;
+    const result:
+      DailyActivityPoint[] = [];
 
-    const earliestDate =
-      this.shiftLocalDate(
-        today,
-        -(dayCount - 1),
-      );
+    let currentDate =
+      startDate;
 
-    return sorted.filter(
-      (day) =>
-        day.date >= earliestDate &&
-        day.date <= today,
-    );
+    while (
+      currentDate <=
+      endDate
+    ) {
+      result.push({
+        date:
+          currentDate,
+
+        activeMilliseconds:
+          lookup.get(
+            currentDate,
+          ) ?? 0,
+      });
+
+      currentDate =
+        this.shiftLocalDate(
+          currentDate,
+          1,
+        );
+    }
+
+    return result;
   }
 
   private aggregateDimensions(
@@ -215,7 +459,10 @@ export class StatisticsService {
       )
       .map(
         (
-          [name, milliseconds],
+          [
+            name,
+            milliseconds,
+          ],
         ): StatisticsDimension => ({
           name,
 
@@ -275,6 +522,203 @@ export class StatisticsService {
     };
   }
 
+  private getCurrentStreak(
+    activeDates:
+      ReadonlySet<string>,
+    today: string,
+  ): {
+    days: number;
+
+    startDate:
+      | string
+      | undefined;
+
+    endDate:
+      | string
+      | undefined;
+  } {
+    let endDate:
+      | string
+      | undefined;
+
+    if (
+      activeDates.has(
+        today,
+      )
+    ) {
+      endDate =
+        today;
+    } else {
+      const yesterday =
+        this.shiftLocalDate(
+          today,
+          -1,
+        );
+
+      if (
+        activeDates.has(
+          yesterday,
+        )
+      ) {
+        endDate =
+          yesterday;
+      }
+    }
+
+    if (!endDate) {
+      return {
+        days: 0,
+
+        startDate:
+          undefined,
+
+        endDate:
+          undefined,
+      };
+    }
+
+    let days = 0;
+
+    let cursor =
+      endDate;
+
+    let startDate =
+      endDate;
+
+    while (
+      activeDates.has(
+        cursor,
+      )
+    ) {
+      days += 1;
+
+      startDate =
+        cursor;
+
+      cursor =
+        this.shiftLocalDate(
+          cursor,
+          -1,
+        );
+    }
+
+    return {
+      days,
+
+      startDate,
+
+      endDate,
+    };
+  }
+
+  private getLongestStreak(
+    activeDates:
+      readonly string[],
+  ): {
+    days: number;
+
+    startDate:
+      | string
+      | undefined;
+
+    endDate:
+      | string
+      | undefined;
+  } {
+    if (
+      activeDates.length === 0
+    ) {
+      return {
+        days: 0,
+
+        startDate:
+          undefined,
+
+        endDate:
+          undefined,
+      };
+    }
+
+    let longestDays =
+      1;
+
+    let longestStart =
+      activeDates[0];
+
+    let longestEnd =
+      activeDates[0];
+
+    let currentDays =
+      1;
+
+    let currentStart =
+      activeDates[0];
+
+    let previousDate =
+      activeDates[0];
+
+    for (
+      let index = 1;
+      index <
+      activeDates.length;
+      index += 1
+    ) {
+      const currentDate =
+        activeDates[index];
+
+      const expectedDate =
+        this.shiftLocalDate(
+          previousDate,
+          1,
+        );
+
+      if (
+        currentDate ===
+        expectedDate
+      ) {
+        currentDays +=
+          1;
+      } else if (
+        currentDate !==
+        previousDate
+      ) {
+        currentDays =
+          1;
+
+        currentStart =
+          currentDate;
+      }
+
+      if (
+        currentDays >
+        longestDays
+      ) {
+        longestDays =
+          currentDays;
+
+        longestStart =
+          currentStart;
+
+        longestEnd =
+          currentDate;
+      }
+
+      previousDate =
+        currentDate;
+    }
+
+    return {
+      days:
+        longestDays,
+
+      startDate:
+        longestStart,
+
+      endDate:
+        longestEnd,
+    };
+  }
+
   private shiftLocalDate(
     date: string,
     days: number,
@@ -305,7 +749,8 @@ export class StatisticsService {
     );
   }
 
-  private getLocalDateKey(): string {
+  private getLocalDateKey():
+    string {
     return this.formatLocalDate(
       new Date(),
     );
