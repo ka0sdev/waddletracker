@@ -31,8 +31,8 @@
       "properties": {
         "waddleTracker.idleTimeoutMinutes": {
           "type": "number",
-          "default": 5,
-          "minimum": 1,
+          "default": 0.1,
+          "minimum": 0.05,
           "maximum": 60,
           "markdownDescription": "Number of minutes without editor activity before WaddleTracker considers the current coding session idle.",
           "order": 10
@@ -47,16 +47,18 @@
           "type": "string",
           "enum": [
             "today",
-            "project"
+            "project",
+            "session"
           ],
           "enumDescriptions": [
             "Display total tracked coding time for today.",
-            "Display the current project name alongside today's tracked time."
+            "Display the current project name alongside today's tracked time.",
+            "Display active coding time for the current session."
           ],
           "default": "today",
           "markdownDescription": "Controls what WaddleTracker displays in the status bar.",
           "order": 30
-        }
+        }        
       }
     }
   },
