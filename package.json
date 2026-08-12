@@ -47,6 +47,11 @@
         {
           "id": "waddletracker.statistics",
           "name": "Coding Statistics"
+        },
+        {
+          "type": "webview",
+          "id": "waddletracker.dashboard",
+          "name": "Statistics Dashboard"
         }
       ]
     },
