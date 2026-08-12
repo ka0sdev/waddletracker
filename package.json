@@ -46,7 +46,7 @@
       "waddletracker": [
         {
           "id": "waddletracker.statistics",
-          "name": "Coding Statistics"
+          "name": "Current Activity"
         },
         {
           "type": "webview",
