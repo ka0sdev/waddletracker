@@ -31,6 +31,18 @@
         "title": "Refresh",
         "category": "WaddleTracker",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "waddletracker.excludeCurrentProject",
+        "title": "WaddleTracker: Exclude Current Project"
+      },
+      {
+        "command": "waddletracker.excludeCurrentFile",
+        "title": "WaddleTracker: Exclude Current File"
+      },
+      {
+        "command": "waddletracker.resetStatistics",
+        "title": "WaddleTracker: Reset All Statistics"
       }
     ],
     "viewsContainers": {
