@@ -41,6 +41,14 @@
         "title": "WaddleTracker: Exclude Current File"
       },
       {
+        "command": "waddletracker.includeCurrentProject",
+        "title": "WaddleTracker: Include Current Project"
+      },
+      {
+        "command": "waddletracker.includeCurrentFile",
+        "title": "WaddleTracker: Include Current File"
+      },
+      {
         "command": "waddletracker.resetStatistics",
         "title": "WaddleTracker: Reset All Statistics"
       }
