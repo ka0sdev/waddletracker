@@ -4,7 +4,6 @@ import { StatisticsService } from "../statistics/StatisticsService";
 
 import {
   HistoricalStatistics,
-  StatisticsRange,
 } from "../types/StatisticsTypes";
 
 import { ActivityTracker } from "../tracking/ActivityTracker";
@@ -47,11 +46,12 @@ export class StatisticsDashboardProvider
       this.tracker.onDidUpdate(
         () => {
           /*
-           * The tracker updates every second.
+           * ActivityTracker updates every second.
            *
-           * We deliberately do not push dashboard
-           * updates on every tick. The dashboard
-           * receives a periodic refresh instead.
+           * The dashboard deliberately does not
+           * re-render on every tracking tick.
+           * Statistics are pushed periodically
+           * instead.
            */
         },
       ),
@@ -273,6 +273,7 @@ export class StatisticsDashboardProvider
 
     .range-selector {
       display: grid;
+
       grid-template-columns:
         repeat(
           4,
@@ -285,7 +286,8 @@ export class StatisticsDashboardProvider
       gap: 4px;
     }
 
-    .range-button {
+    .range-button,
+    .breakdown-button {
       border:
         1px solid
         var(
@@ -294,9 +296,6 @@ export class StatisticsDashboardProvider
         );
 
       border-radius: 3px;
-
-      padding:
-        5px 4px;
 
       color:
         var(
@@ -315,14 +314,26 @@ export class StatisticsDashboardProvider
       white-space: nowrap;
     }
 
-    .range-button:hover {
+    .range-button {
+      padding:
+        5px 4px;
+    }
+
+    .breakdown-button {
+      padding:
+        5px 8px;
+    }
+
+    .range-button:hover,
+    .breakdown-button:hover {
       background:
         var(
           --vscode-button-secondaryHoverBackground
         );
     }
 
-    .range-button.active {
+    .range-button.active,
+    .breakdown-button.active {
       color:
         var(
           --vscode-button-foreground
@@ -503,10 +514,27 @@ export class StatisticsDashboardProvider
         );
     }
 
+    .breakdown-tabs {
+      display: grid;
+
+      grid-template-columns:
+        repeat(
+          3,
+          minmax(
+            0,
+            1fr
+          )
+        );
+
+      gap: 4px;
+    }
+
     .ranking {
       display: flex;
       flex-direction: column;
       gap: 9px;
+
+      min-height: 20px;
     }
 
     .ranking-item {
@@ -551,11 +579,13 @@ export class StatisticsDashboardProvider
       border-radius: 2px;
 
       background:
-        var(
-          --vscode-progressBar-background
+        color-mix(
+          in srgb,
+          var(
+            --vscode-progressBar-background
+          ) 25%,
+          transparent
         );
-
-      opacity: 0.25;
     }
 
     .progress-fill {
@@ -567,8 +597,6 @@ export class StatisticsDashboardProvider
         var(
           --vscode-progressBar-background
         );
-
-      opacity: 1;
     }
 
     .empty-state {
@@ -736,27 +764,41 @@ export class StatisticsDashboardProvider
       <h2
         class="section-title"
       >
-        Top Projects
+        Breakdown
       </h2>
 
       <div
-        class="ranking"
-        id="projects"
-      ></div>
-    </section>
-
-    <section
-      class="section"
-    >
-      <h2
-        class="section-title"
+        class="breakdown-tabs"
+        aria-label="Statistics breakdown"
       >
-        Top Languages
-      </h2>
+        <button
+          class="breakdown-button active"
+          data-breakdown="projects"
+          type="button"
+        >
+          Projects
+        </button>
+
+        <button
+          class="breakdown-button"
+          data-breakdown="languages"
+          type="button"
+        >
+          Languages
+        </button>
+
+        <button
+          class="breakdown-button"
+          data-breakdown="files"
+          type="button"
+        >
+          Files
+        </button>
+      </div>
 
       <div
         class="ranking"
-        id="languages"
+        id="breakdown-ranking"
       ></div>
     </section>
   </div>
@@ -767,15 +809,28 @@ export class StatisticsDashboardProvider
     const vscode =
       acquireVsCodeApi();
 
+    const previousState =
+      vscode.getState() ?? {};
+
     let dashboardData =
       undefined;
 
     let selectedRange =
+      previousState.selectedRange ??
       "today";
+
+    let selectedBreakdown =
+      previousState.selectedBreakdown ??
+      "projects";
 
     const rangeButtons =
       document.querySelectorAll(
         ".range-button"
+      );
+
+    const breakdownButtons =
+      document.querySelectorAll(
+        ".breakdown-button"
       );
 
     const totalTime =
@@ -803,14 +858,9 @@ export class StatisticsDashboardProvider
         "activity-chart"
       );
 
-    const projects =
+    const breakdownRanking =
       document.getElementById(
-        "projects"
-      );
-
-    const languages =
-      document.getElementById(
-        "languages"
+        "breakdown-ranking"
       );
 
     const refreshButton =
@@ -828,9 +878,30 @@ export class StatisticsDashboardProvider
           selectedRange =
             button.dataset.range;
 
+          persistState();
+
           updateRangeButtons();
 
           render();
+        },
+      );
+    }
+
+    for (
+      const button
+      of breakdownButtons
+    ) {
+      button.addEventListener(
+        "click",
+        () => {
+          selectedBreakdown =
+            button.dataset.breakdown;
+
+          persistState();
+
+          updateBreakdownButtons();
+
+          renderBreakdown();
         },
       );
     }
@@ -864,6 +935,13 @@ export class StatisticsDashboardProvider
       },
     );
 
+    function persistState() {
+      vscode.setState({
+        selectedRange,
+        selectedBreakdown,
+      });
+    }
+
     function updateRangeButtons() {
       for (
         const button
@@ -877,19 +955,34 @@ export class StatisticsDashboardProvider
       }
     }
 
+    function updateBreakdownButtons() {
+      for (
+        const button
+        of breakdownButtons
+      ) {
+        button.classList.toggle(
+          "active",
+          button.dataset.breakdown ===
+            selectedBreakdown,
+        );
+      }
+    }
+
     function render() {
       if (!dashboardData) {
         return;
       }
 
       const statistics =
-        dashboardData[
-          selectedRange
-        ];
+        getSelectedStatistics();
 
       if (!statistics) {
         return;
       }
+
+      updateRangeButtons();
+
+      updateBreakdownButtons();
 
       totalTime.textContent =
         formatDuration(
@@ -930,17 +1023,64 @@ export class StatisticsDashboardProvider
         statistics.daily
       );
 
-      renderRanking(
-        projects,
-        statistics.projects,
-        false,
-      );
+      renderBreakdown();
+    }
+
+    function renderBreakdown() {
+      const statistics =
+        getSelectedStatistics();
+
+      if (!statistics) {
+        return;
+      }
+
+      let items =
+        [];
+
+      let mode =
+        selectedBreakdown;
+
+      switch (
+        selectedBreakdown
+      ) {
+        case "languages":
+          items =
+            statistics.languages;
+
+          break;
+
+        case "files":
+          items =
+            statistics.files;
+
+          break;
+
+        case "projects":
+        default:
+          items =
+            statistics.projects;
+
+          mode =
+            "projects";
+
+          break;
+      }
 
       renderRanking(
-        languages,
-        statistics.languages,
-        true,
+        breakdownRanking,
+        items,
+        mode,
       );
+    }
+
+    function getSelectedStatistics() {
+      if (!dashboardData) {
+        return undefined;
+      }
+
+      return dashboardData[
+        selectedRange
+      ];
     }
 
     function renderActivityChart(
@@ -1034,7 +1174,7 @@ export class StatisticsDashboardProvider
     function renderRanking(
       container,
       items,
-      languagesMode
+      mode
     ) {
       container.replaceChildren();
 
@@ -1050,8 +1190,20 @@ export class StatisticsDashboardProvider
         empty.className =
           "empty-state";
 
-        empty.textContent =
-          "No activity recorded.";
+        if (
+          mode === "languages"
+        ) {
+          empty.textContent =
+            "No language activity recorded.";
+        } else if (
+          mode === "files"
+        ) {
+          empty.textContent =
+            "No file activity recorded.";
+        } else {
+          empty.textContent =
+            "No project activity recorded.";
+        }
 
         container.appendChild(
           empty
@@ -1091,12 +1243,17 @@ export class StatisticsDashboardProvider
         name.className =
           "ranking-name";
 
-        name.textContent =
-          languagesMode
-            ? formatLanguageName(
-                item.name
-              )
-            : item.name;
+        if (
+          mode === "languages"
+        ) {
+          name.textContent =
+            formatLanguageName(
+              item.name
+            );
+        } else {
+          name.textContent =
+            item.name;
+        }
 
         name.title =
           name.textContent;
@@ -1317,6 +1474,10 @@ export class StatisticsDashboardProvider
         languageId
       );
     }
+
+    updateRangeButtons();
+
+    updateBreakdownButtons();
 
     vscode.postMessage({
       type: "ready",
