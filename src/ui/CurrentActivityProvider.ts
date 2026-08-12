@@ -3,6 +3,10 @@ import * as vscode from "vscode";
 import { ActivityTracker } from "../tracking/ActivityTracker";
 
 import {
+  TrackingExclusion,
+} from "../tracking/TrackingFilter";
+
+import {
   formatLanguageName,
 } from "../utils/formatters";
 
@@ -19,6 +23,10 @@ interface CurrentActivityData {
 
   languageName:
     | string
+    | undefined;
+
+  exclusion:
+    | TrackingExclusion
     | undefined;
 }
 
@@ -141,6 +149,9 @@ export class CurrentActivityProvider
     const session =
       this.tracker.getCurrentSession();
 
+    const exclusion =
+      this.tracker.getCurrentExclusion();
+
     const data:
       CurrentActivityData = {
       active:
@@ -162,6 +173,8 @@ export class CurrentActivityProvider
               context.languageId,
             )
           : undefined,
+
+      exclusion,
     };
 
     await this.view.webview.postMessage({
@@ -215,7 +228,8 @@ export class CurrentActivityProvider
     }
 
     body {
-      margin: 0;
+      margin:
+        0;
 
       padding:
         12px;
@@ -414,6 +428,45 @@ export class CurrentActivityProvider
         7px;
     }
 
+    .status-detail {
+      display:
+        none;
+
+      min-width:
+        0;
+
+      margin-top:
+        5px;
+
+      color:
+        var(
+          --vscode-descriptionForeground
+        );
+
+      font-size:
+        10px;
+
+      font-weight:
+        400;
+
+      line-height:
+        1.2;
+
+      overflow:
+        hidden;
+
+      text-overflow:
+        ellipsis;
+
+      white-space:
+        nowrap;
+    }
+
+    .status-detail.visible {
+      display:
+        block;
+    }
+
     .status-indicator {
       display:
         inline-block;
@@ -452,6 +505,22 @@ export class CurrentActivityProvider
     .status-indicator.idle {
       opacity:
         0.45;
+    }
+
+    .status-indicator.excluded {
+      background:
+        var(
+          --vscode-charts-yellow,
+          var(
+            --vscode-editorWarning-foreground,
+            var(
+              --vscode-foreground
+            )
+          )
+        );
+
+      opacity:
+        1;
     }
 
     @media (
@@ -509,6 +578,8 @@ export class CurrentActivityProvider
     >
       <section
         class="activity-card"
+        id="status-card"
+        title="WaddleTracker is idle."
       >
         <div
           class="card-label"
@@ -530,6 +601,11 @@ export class CurrentActivityProvider
             Idle
           </span>
         </div>
+
+        <div
+          class="status-detail"
+          id="status-detail"
+        ></div>
       </section>
 
       <section
@@ -597,6 +673,11 @@ export class CurrentActivityProvider
         "project-value"
       );
 
+    const statusCard =
+      document.getElementById(
+        "status-card"
+      );
+
     const statusValue =
       document.getElementById(
         "status-value"
@@ -605,6 +686,11 @@ export class CurrentActivityProvider
     const statusIndicator =
       document.getElementById(
         "status-indicator"
+      );
+
+    const statusDetail =
+      document.getElementById(
+        "status-detail"
       );
 
     const sessionValue =
@@ -664,19 +750,8 @@ export class CurrentActivityProvider
       languageValue.title =
         language;
 
-      statusValue.textContent =
-        data.active
-          ? "Active"
-          : "Idle";
-
-      statusIndicator.classList.toggle(
-        "active",
-        data.active,
-      );
-
-      statusIndicator.classList.toggle(
-        "idle",
-        !data.active,
+      renderStatus(
+        data
       );
 
       sessionValue.textContent =
@@ -690,6 +765,106 @@ export class CurrentActivityProvider
         formatDuration(
           data.todayMilliseconds
         );
+    }
+
+    function renderStatus(
+      data
+    ) {
+      statusIndicator.classList.remove(
+        "active",
+        "idle",
+        "excluded",
+      );
+
+      if (
+        data.exclusion
+      ) {
+        const kind =
+          capitalize(
+            data.exclusion.kind
+          );
+
+        const detail =
+          kind +
+          " • " +
+          data.exclusion.pattern;
+
+        statusValue.textContent =
+          "Excluded";
+
+        statusDetail.textContent =
+          detail;
+
+        statusDetail.classList.add(
+          "visible"
+        );
+
+        statusIndicator.classList.add(
+          "excluded"
+        );
+
+        statusCard.title =
+          "Tracking excluded by " +
+          data.exclusion.kind +
+          " pattern: " +
+          data.exclusion.pattern +
+          "\\nMatched value: " +
+          data.exclusion.value;
+
+        return;
+      }
+
+      statusDetail.textContent =
+        "";
+
+      statusDetail.classList.remove(
+        "visible"
+      );
+
+      if (
+        data.active
+      ) {
+        statusValue.textContent =
+          "Active";
+
+        statusIndicator.classList.add(
+          "active"
+        );
+
+        statusCard.title =
+          "WaddleTracker is currently recording coding activity.";
+
+        return;
+      }
+
+      statusValue.textContent =
+        "Idle";
+
+      statusIndicator.classList.add(
+        "idle"
+      );
+
+      statusCard.title =
+        "WaddleTracker is currently idle.";
+    }
+
+    function capitalize(
+      value
+    ) {
+      if (
+        !value
+      ) {
+        return "";
+      }
+
+      return (
+        value.charAt(
+          0
+        ).toUpperCase() +
+        value.slice(
+          1
+        )
+      );
     }
 
     function formatDuration(
