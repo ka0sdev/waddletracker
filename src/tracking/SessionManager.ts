@@ -1,7 +1,12 @@
 import { randomUUID } from "node:crypto";
 
 import { ActivityContext } from "../types/ActivityContext";
-import { CodingSession } from "../types/CodingSession";
+
+import {
+  CodingSession,
+  SessionDimensionStats,
+} from "../types/CodingSession";
+
 import { TrackerState } from "../types/TrackerState";
 
 export class SessionManager {
@@ -19,7 +24,9 @@ export class SessionManager {
     context: ActivityContext,
     startedAt: number,
   ): CodingSession {
-    if (this.currentSession) {
+    if (
+      this.currentSession
+    ) {
       return this.currentSession;
     }
 
@@ -29,13 +36,20 @@ export class SessionManager {
       ).toISOString();
 
     const session: CodingSession = {
-      id: randomUUID(),
+      id:
+        randomUUID(),
 
-      startedAt: timestamp,
-      endedAt: undefined,
-      lastActivityAt: timestamp,
+      startedAt:
+        timestamp,
 
-      activeMilliseconds: 0,
+      endedAt:
+        undefined,
+
+      lastActivityAt:
+        timestamp,
+
+      activeMilliseconds:
+        0,
 
       workspaceName:
         context.workspaceName,
@@ -45,6 +59,10 @@ export class SessionManager {
 
       remoteName:
         context.remoteName,
+
+      languages: {},
+
+      files: {},
     };
 
     this.state.sessions.push(
@@ -60,7 +78,9 @@ export class SessionManager {
   public markActivity(
     timestamp: number,
   ): void {
-    if (!this.currentSession) {
+    if (
+      !this.currentSession
+    ) {
       return;
     }
 
@@ -74,6 +94,7 @@ export class SessionManager {
   public recordActiveTime(
     milliseconds: number,
     activeUntil: number,
+    context: ActivityContext,
   ): void {
     if (
       !this.currentSession ||
@@ -86,6 +107,26 @@ export class SessionManager {
       .activeMilliseconds +=
       milliseconds;
 
+    if (
+      context.languageId
+    ) {
+      this.incrementDimension(
+        this.currentSession.languages,
+        context.languageId,
+        milliseconds,
+      );
+    }
+
+    if (
+      context.filePath
+    ) {
+      this.incrementDimension(
+        this.currentSession.files,
+        context.filePath,
+        milliseconds,
+      );
+    }
+
     this.currentSession
       .lastActivityAt =
       new Date(
@@ -96,7 +137,9 @@ export class SessionManager {
   public closeSession(
     endedAt: number,
   ): void {
-    if (!this.currentSession) {
+    if (
+      !this.currentSession
+    ) {
       return;
     }
 
@@ -111,18 +154,49 @@ export class SessionManager {
 
   public getCurrentSession():
     CodingSession | undefined {
-    if (!this.currentSession) {
+    if (
+      !this.currentSession
+    ) {
       return undefined;
     }
 
     return {
       ...this.currentSession,
+
+      languages: {
+        ...this.currentSession.languages,
+      },
+
+      files: {
+        ...this.currentSession.files,
+      },
     };
   }
 
   public getSessions():
     readonly CodingSession[] {
     return this.state.sessions;
+  }
+
+  private incrementDimension(
+    collection: Record<
+      string,
+      SessionDimensionStats
+    >,
+    key: string,
+    milliseconds: number,
+  ): void {
+    const current =
+      collection[key] ?? {
+        activeMilliseconds:
+          0,
+      };
+
+    current.activeMilliseconds +=
+      milliseconds;
+
+    collection[key] =
+      current;
   }
 
   private recoverDanglingSession(): void {
