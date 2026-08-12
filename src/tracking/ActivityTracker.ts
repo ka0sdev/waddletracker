@@ -14,7 +14,10 @@ import { CodingSession } from "../types/CodingSession";
 
 import { ContextResolver } from "./ContextResolver";
 import { SessionManager } from "./SessionManager";
-import { TrackingFilter } from "./TrackingFilter";
+import {
+  TrackingExclusion,
+  TrackingFilter,
+} from "./TrackingFilter";
 
 const TICK_INTERVAL_MS =
   1_000;
@@ -184,13 +187,19 @@ export class ActivityTracker
     );
   }
 
+  public getCurrentExclusion():
+    TrackingExclusion | undefined {
+    return this.trackingFilter
+      .getExclusion(
+        this.currentContext,
+      );
+  }
+
   public isCurrentContextExcluded():
     boolean {
     return (
-      !this.trackingFilter
-        .shouldTrack(
-          this.currentContext,
-        )
+      this.getCurrentExclusion() !==
+      undefined
     );
   }
 
