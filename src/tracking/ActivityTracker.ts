@@ -203,6 +203,52 @@ export class ActivityTracker
     );
   }
 
+  public async resetStatistics():
+    Promise<void> {
+    const now =
+      Date.now();
+
+    const wasActive =
+      this.isActive();
+
+    this.sessionManager
+      .reset();
+
+    this.state.daily = {};
+
+    this.lastTickAt =
+      now;
+
+    if (
+      wasActive &&
+      !this.isCurrentContextExcluded()
+    ) {
+      this.lastActivityAt =
+        now;
+
+      this.sessionManager
+        .startSession(
+          this.currentContext,
+          now,
+        );
+
+      this.sessionManager
+        .markActivity(
+          now,
+        );
+    } else {
+      this.lastActivityAt =
+        undefined;
+    }
+
+    this.dirty =
+      true;
+
+    await this.flush();
+
+    this.onDidUpdateEmitter.fire();
+  }
+
   public async flush(): Promise<void> {
     if (
       !this.dirty
