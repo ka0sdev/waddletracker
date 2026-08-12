@@ -1,16 +1,54 @@
-export interface DailyStats {
-  date: string;
+export interface DailyDimensionStats {
   activeMilliseconds: number;
 }
 
+export interface DailyStats {
+  date: string;
+
+  activeMilliseconds: number;
+
+  projects: Record<
+    string,
+    DailyDimensionStats
+  >;
+
+  languages: Record<
+    string,
+    DailyDimensionStats
+  >;
+
+  files: Record<
+    string,
+    DailyDimensionStats
+  >;
+}
+
 export interface TrackerState {
-  version: 1;
-  daily: Record<string, DailyStats>;
+  version: 2;
+
+  daily: Record<
+    string,
+    DailyStats
+  >;
+}
+
+export function createEmptyDailyStats(
+  date: string,
+): DailyStats {
+  return {
+    date,
+
+    activeMilliseconds: 0,
+
+    projects: {},
+    languages: {},
+    files: {},
+  };
 }
 
 export function createEmptyTrackerState(): TrackerState {
   return {
-    version: 1,
+    version: 2,
     daily: {},
   };
 }
