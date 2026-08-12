@@ -1,7 +1,10 @@
 import * as vscode from "vscode";
 
 import { JsonStorageProvider } from "./storage/JsonStorageProvider";
+
 import { ActivityTracker } from "./tracking/ActivityTracker";
+import { ContextResolver } from "./tracking/ContextResolver";
+
 import { StatusBarController } from "./ui/StatusBarController";
 
 let activityTracker:
@@ -20,10 +23,14 @@ export async function activate(
   const state =
     await storage.loadState();
 
+  const contextResolver =
+    new ContextResolver();
+
   activityTracker =
     new ActivityTracker(
       storage,
       state,
+      contextResolver,
     );
 
   const statusBar =
@@ -42,6 +49,9 @@ export async function activate(
         const stats =
           activityTracker.getTodayStats();
 
+        const currentContext =
+          activityTracker.getCurrentContext();
+
         const duration =
           formatDuration(
             stats.activeMilliseconds,
@@ -52,12 +62,43 @@ export async function activate(
             ? "Active"
             : "Idle";
 
+        const details = [
+          "WaddleTracker",
+          `Today: ${duration}`,
+          `Status: ${activityState}`,
+        ];
+
+        if (
+          currentContext.projectName
+        ) {
+          details.push(
+            `Project: ${currentContext.projectName}`,
+          );
+        }
+
+        if (
+          currentContext.languageId
+        ) {
+          details.push(
+            `Language: ${currentContext.languageId}`,
+          );
+        }
+
         await vscode.window.showInformationMessage(
-          [
-            "WaddleTracker",
-            `Today: ${duration}`,
-            `Status: ${activityState}`,
-          ].join(" • "),
+          details.join(
+            " • ",
+          ),
+        );
+      },
+    );
+
+  const openSettingsCommand =
+    vscode.commands.registerCommand(
+      "waddletracker.openSettings",
+      async () => {
+        await vscode.commands.executeCommand(
+          "workbench.action.openSettings",
+          "@ext:ka0sdev.waddletracker",
         );
       },
     );
@@ -66,6 +107,7 @@ export async function activate(
     activityTracker,
     statusBar,
     showStatusCommand,
+    openSettingsCommand,
   );
 
   activityTracker.start();
@@ -82,39 +124,60 @@ export async function deactivate(): Promise<void> {
 
   await activityTracker.disposeAsync();
 
-  activityTracker = undefined;
+  activityTracker =
+    undefined;
 }
 
 function formatDuration(
   milliseconds: number,
 ): string {
-  const totalSeconds = Math.floor(
-    milliseconds / 1000,
-  );
+  const totalSeconds =
+    Math.floor(
+      milliseconds /
+        1000,
+    );
 
-  const hours = Math.floor(
-    totalSeconds / 3600,
-  );
+  const hours =
+    Math.floor(
+      totalSeconds /
+        3600,
+    );
 
-  const minutes = Math.floor(
-    (totalSeconds % 3600) / 60,
-  );
+  const minutes =
+    Math.floor(
+      (
+        totalSeconds %
+        3600
+      ) /
+        60,
+    );
 
   const seconds =
-    totalSeconds % 60;
+    totalSeconds %
+    60;
 
   return [
-    String(hours).padStart(
+    String(
+      hours,
+    ).padStart(
       2,
       "0",
     ),
-    String(minutes).padStart(
+
+    String(
+      minutes,
+    ).padStart(
       2,
       "0",
     ),
-    String(seconds).padStart(
+
+    String(
+      seconds,
+    ).padStart(
       2,
       "0",
     ),
-  ].join(":");
+  ].join(
+    ":",
+  );
 }
