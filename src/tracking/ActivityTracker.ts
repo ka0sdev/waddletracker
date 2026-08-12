@@ -1,27 +1,51 @@
 import * as vscode from "vscode";
 
 import { StorageProvider } from "../storage/StorageProvider";
+
 import {
+  createEmptyDailyStats,
+  DailyDimensionStats,
   DailyStats,
   TrackerState,
 } from "../types/TrackerState";
 
-const TICK_INTERVAL_MS = 1_000;
-const SAVE_INTERVAL_MS = 30_000;
+import { ActivityContext } from "../types/ActivityContext";
 
-export class ActivityTracker implements vscode.Disposable {
-  private state: TrackerState;
+import { ContextResolver } from "./ContextResolver";
 
-  private lastActivityAt: number | undefined;
-  private lastTickAt: number;
+const TICK_INTERVAL_MS =
+  1_000;
 
-  private tickTimer: NodeJS.Timeout | undefined;
-  private saveTimer: NodeJS.Timeout | undefined;
+const SAVE_INTERVAL_MS =
+  30_000;
+
+export class ActivityTracker
+  implements vscode.Disposable
+{
+  private state:
+    TrackerState;
+
+  private lastActivityAt:
+    number | undefined;
+
+  private lastTickAt:
+    number;
+
+  private currentContext:
+    ActivityContext;
+
+  private tickTimer:
+    NodeJS.Timeout | undefined;
+
+  private saveTimer:
+    NodeJS.Timeout | undefined;
 
   private dirty = false;
   private disposed = false;
 
-  private readonly disposables: vscode.Disposable[] = [];
+  private readonly disposables:
+    vscode.Disposable[] = [];
+
   private readonly onDidUpdateEmitter =
     new vscode.EventEmitter<void>();
 
@@ -29,48 +53,74 @@ export class ActivityTracker implements vscode.Disposable {
     this.onDidUpdateEmitter.event;
 
   constructor(
-    private readonly storage: StorageProvider,
-    state: TrackerState,
+    private readonly storage:
+      StorageProvider,
+
+    state:
+      TrackerState,
+
+    private readonly contextResolver:
+      ContextResolver,
   ) {
-    this.state = state;
-    this.lastTickAt = Date.now();
+    this.state =
+      state;
+
+    this.lastTickAt =
+      Date.now();
+
+    this.currentContext =
+      this.contextResolver.resolve();
   }
 
   public start(): void {
     this.registerActivityListeners();
 
-    this.tickTimer = setInterval(
-      () => {
-        this.tick();
-      },
-      TICK_INTERVAL_MS,
-    );
+    this.tickTimer =
+      setInterval(
+        () => {
+          this.tick();
+        },
+        TICK_INTERVAL_MS,
+      );
 
-    this.saveTimer = setInterval(
-      () => {
-        void this.flush();
-      },
-      SAVE_INTERVAL_MS,
-    );
+    this.saveTimer =
+      setInterval(
+        () => {
+          void this.flush();
+        },
+        SAVE_INTERVAL_MS,
+      );
 
-    if (vscode.window.activeTextEditor) {
+    if (
+      vscode.window.activeTextEditor
+    ) {
       this.markActivity();
     }
   }
 
   public getTodayStats(): DailyStats {
-    const date = this.getLocalDateKey();
+    const date =
+      this.getLocalDateKey();
 
     return (
-      this.state.daily[date] ?? {
+      this.state.daily[date] ??
+      createEmptyDailyStats(
         date,
-        activeMilliseconds: 0,
-      }
+      )
     );
   }
 
+  public getCurrentContext(): ActivityContext {
+    return {
+      ...this.currentContext,
+    };
+  }
+
   public isActive(): boolean {
-    if (this.lastActivityAt === undefined) {
+    if (
+      this.lastActivityAt ===
+      undefined
+    ) {
       return false;
     }
 
@@ -78,7 +128,8 @@ export class ActivityTracker implements vscode.Disposable {
       this.getIdleTimeoutMilliseconds();
 
     return (
-      Date.now() - this.lastActivityAt <
+      Date.now() -
+        this.lastActivityAt <
       idleTimeout
     );
   }
@@ -103,20 +154,28 @@ export class ActivityTracker implements vscode.Disposable {
     this.disposed = true;
 
     if (this.tickTimer) {
-      clearInterval(this.tickTimer);
+      clearInterval(
+        this.tickTimer,
+      );
     }
 
     if (this.saveTimer) {
-      clearInterval(this.saveTimer);
+      clearInterval(
+        this.saveTimer,
+      );
     }
 
-    for (const disposable of this.disposables) {
+    for (
+      const disposable
+      of this.disposables
+    ) {
       disposable.dispose();
     }
 
     this.onDidUpdateEmitter.dispose();
 
     await this.flush();
+
     await this.storage.dispose();
   }
 
@@ -128,45 +187,91 @@ export class ActivityTracker implements vscode.Disposable {
     this.disposables.push(
       vscode.window.onDidChangeActiveTextEditor(
         () => {
+          this.refreshContext();
           this.markActivity();
         },
       ),
 
       vscode.window.onDidChangeTextEditorSelection(
         () => {
+          this.refreshContext();
           this.markActivity();
         },
       ),
 
       vscode.workspace.onDidChangeTextDocument(
-        () => {
-          this.markActivity();
+        (event) => {
+          if (
+            vscode.window
+              .activeTextEditor
+              ?.document ===
+            event.document
+          ) {
+            this.refreshContext();
+            this.markActivity();
+          }
         },
       ),
 
       vscode.workspace.onDidSaveTextDocument(
-        () => {
-          this.markActivity();
+        (document) => {
+          if (
+            vscode.window
+              .activeTextEditor
+              ?.document ===
+            document
+          ) {
+            this.refreshContext();
+            this.markActivity();
+          }
         },
       ),
 
       vscode.workspace.onDidOpenTextDocument(
+        (document) => {
+          if (
+            vscode.window
+              .activeTextEditor
+              ?.document ===
+            document
+          ) {
+            this.refreshContext();
+            this.markActivity();
+          }
+        },
+      ),
+
+      vscode.workspace.onDidChangeWorkspaceFolders(
         () => {
-          this.markActivity();
+          this.refreshContext();
         },
       ),
     );
   }
 
+  private refreshContext(): void {
+    this.currentContext =
+      this.contextResolver.resolve();
+
+    this.onDidUpdateEmitter.fire();
+  }
+
   private markActivity(): void {
-    this.lastActivityAt = Date.now();
+    this.lastActivityAt =
+      Date.now();
   }
 
   private tick(): void {
-    const now = Date.now();
+    const now =
+      Date.now();
 
-    if (this.lastActivityAt === undefined) {
-      this.lastTickAt = now;
+    if (
+      this.lastActivityAt ===
+      undefined
+    ) {
+      this.lastTickAt =
+        now;
+
       return;
     }
 
@@ -174,48 +279,112 @@ export class ActivityTracker implements vscode.Disposable {
       this.getIdleTimeoutMilliseconds();
 
     const activityCutoff =
-      this.lastActivityAt + idleTimeout;
+      this.lastActivityAt +
+      idleTimeout;
 
-    const activeUntil = Math.min(
-      now,
-      activityCutoff,
-    );
+    const activeUntil =
+      Math.min(
+        now,
+        activityCutoff,
+      );
 
-    if (activeUntil > this.lastTickAt) {
+    if (
+      activeUntil >
+      this.lastTickAt
+    ) {
       const elapsed =
-        activeUntil - this.lastTickAt;
+        activeUntil -
+        this.lastTickAt;
 
       this.addActiveTime(
         elapsed,
+        this.currentContext,
       );
     }
 
-    this.lastTickAt = now;
+    this.lastTickAt =
+      now;
   }
 
   private addActiveTime(
     milliseconds: number,
+    context: ActivityContext,
   ): void {
-    if (milliseconds <= 0) {
+    if (
+      milliseconds <= 0
+    ) {
       return;
     }
 
-    const date = this.getLocalDateKey();
+    const date =
+      this.getLocalDateKey();
 
     const current =
-      this.state.daily[date] ?? {
+      this.state.daily[date] ??
+      createEmptyDailyStats(
         date,
+      );
+
+    current.activeMilliseconds +=
+      milliseconds;
+
+    if (
+      context.projectName
+    ) {
+      this.incrementDimension(
+        current.projects,
+        context.projectName,
+        milliseconds,
+      );
+    }
+
+    if (
+      context.languageId
+    ) {
+      this.incrementDimension(
+        current.languages,
+        context.languageId,
+        milliseconds,
+      );
+    }
+
+    if (
+      context.filePath
+    ) {
+      this.incrementDimension(
+        current.files,
+        context.filePath,
+        milliseconds,
+      );
+    }
+
+    this.state.daily[date] =
+      current;
+
+    this.dirty =
+      true;
+
+    this.onDidUpdateEmitter.fire();
+  }
+
+  private incrementDimension(
+    collection: Record<
+      string,
+      DailyDimensionStats
+    >,
+    key: string,
+    milliseconds: number,
+  ): void {
+    const current =
+      collection[key] ?? {
         activeMilliseconds: 0,
       };
 
     current.activeMilliseconds +=
       milliseconds;
 
-    this.state.daily[date] = current;
-
-    this.dirty = true;
-
-    this.onDidUpdateEmitter.fire();
+    collection[key] =
+      current;
   }
 
   private getIdleTimeoutMilliseconds(): number {
@@ -230,28 +399,38 @@ export class ActivityTracker implements vscode.Disposable {
         5,
       );
 
-    return minutes * 60 * 1000;
+    return (
+      minutes *
+      60 *
+      1000
+    );
   }
 
   private getLocalDateKey(): string {
-    const now = new Date();
+    const now =
+      new Date();
 
-    const year = now.getFullYear();
+    const year =
+      now.getFullYear();
 
-    const month = String(
-      now.getMonth() + 1,
-    ).padStart(
-      2,
-      "0",
+    const month =
+      String(
+        now.getMonth() + 1,
+      ).padStart(
+        2,
+        "0",
+      );
+
+    const day =
+      String(
+        now.getDate(),
+      ).padStart(
+        2,
+        "0",
+      );
+
+    return (
+      `${year}-${month}-${day}`
     );
-
-    const day = String(
-      now.getDate(),
-    ).padStart(
-      2,
-      "0",
-    );
-
-    return `${year}-${month}-${day}`;
   }
 }
