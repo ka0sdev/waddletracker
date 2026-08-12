@@ -1,21 +1,13 @@
 import * as vscode from "vscode";
 
-import { StatisticsService } from "../statistics/StatisticsService";
-import { HistoricalStatistics } from "../types/StatisticsTypes";
-
 import { ActivityTracker } from "../tracking/ActivityTracker";
 
 import { CodingSession } from "../types/CodingSession";
-
-import {
-  DailyDimensionStats,
-  DailyStats,
-} from "../types/TrackerState";
+import { DailyStats } from "../types/TrackerState";
 
 import {
   formatDuration,
   formatLanguageName,
-  formatPercentage,
 } from "../utils/formatters";
 
 const PERIODIC_REFRESH_INTERVAL_MS =
@@ -24,8 +16,6 @@ const PERIODIC_REFRESH_INTERVAL_MS =
 type StatisticsNodeKind =
   | "section"
   | "stat"
-  | "project"
-  | "language"
   | "session";
 
 interface StatisticsNode {
@@ -81,9 +71,6 @@ export class StatisticsTreeProvider
   constructor(
     private readonly tracker:
       ActivityTracker,
-
-    private readonly statisticsService:
-      StatisticsService,
   ) {
     this.lastSnapshot =
       this.createTrackerSnapshot();
@@ -264,28 +251,18 @@ export class StatisticsTreeProvider
       this.tracker.getCurrentSession();
 
     return [
-      this.createOverviewSection(
+      this.createCurrentSection(
         stats,
         session,
         context.projectName,
         context.languageId,
       ),
 
-      this.createHistoricalSection(),
-
-      this.createProjectsSection(
-        stats,
-      ),
-
-      this.createLanguagesSection(
-        stats,
-      ),
-
       this.createRecentSessionsSection(),
     ];
   }
 
-  private createOverviewSection(
+  private createCurrentSection(
     stats: DailyStats,
     session:
       CodingSession | undefined,
@@ -301,11 +278,19 @@ export class StatisticsTreeProvider
       StatisticsNode[] = [
       {
         kind: "stat",
+
         label: "Status",
+
         description:
           active
             ? "Active"
             : "Idle",
+
+        tooltip:
+          active
+            ? "WaddleTracker is currently recording coding activity."
+            : "WaddleTracker is currently idle.",
+
         icon:
           active
             ? "pulse"
@@ -314,23 +299,48 @@ export class StatisticsTreeProvider
 
       {
         kind: "stat",
+
         label: "Current session",
+
         description:
           session
             ? formatDuration(
                 session.activeMilliseconds,
               )
             : "No active session",
+
+        tooltip:
+          session
+            ? [
+                `Current session: ${formatDuration(
+                  session.activeMilliseconds,
+                )}`,
+                this.formatSessionRange(
+                  session,
+                ),
+              ].join(
+                "\n",
+              )
+            : "No coding session is currently active.",
+
         icon: "clock",
       },
 
       {
         kind: "stat",
+
         label: "Today",
+
         description:
           formatDuration(
             stats.activeMilliseconds,
           ),
+
+        tooltip:
+          `Total coding activity today: ${formatDuration(
+            stats.activeMilliseconds,
+          )}`,
+
         icon: "calendar",
       },
     ];
@@ -338,210 +348,48 @@ export class StatisticsTreeProvider
     if (projectName) {
       children.push({
         kind: "stat",
+
         label: "Project",
+
         description:
           projectName,
+
+        tooltip:
+          `Current project: ${projectName}`,
+
         icon: "folder",
       });
     }
 
     if (languageId) {
+      const languageName =
+        formatLanguageName(
+          languageId,
+        );
+
       children.push({
         kind: "stat",
+
         label: "Language",
+
         description:
-          formatLanguageName(
-            languageId,
-          ),
+          languageName,
+
+        tooltip:
+          `Current language: ${languageName}`,
+
         icon: "code",
       });
     }
 
     return {
       kind: "section",
-      label: "Overview",
-      icon: "dashboard",
+
+      label: "Current",
+
+      icon: "pulse",
+
       children,
-    };
-  }
-
-  private createHistoricalSection():
-    StatisticsNode {
-    const history =
-      this.tracker.getDailyHistory();
-
-    const sevenDays =
-      this.statisticsService.getStatistics(
-        history,
-        "7days",
-      );
-
-    const thirtyDays =
-      this.statisticsService.getStatistics(
-        history,
-        "30days",
-      );
-
-    const allTime =
-      this.statisticsService.getStatistics(
-        history,
-        "all",
-      );
-
-    return {
-      kind: "section",
-      label: "History",
-      icon: "graph",
-
-      children: [
-        {
-          kind: "stat",
-          label: "Last 7 days",
-          description:
-            formatDuration(
-              sevenDays.activeMilliseconds,
-            ),
-          tooltip:
-            this.createHistoricalTooltip(
-              sevenDays,
-            ),
-          icon: "calendar",
-        },
-
-        {
-          kind: "stat",
-          label: "Last 30 days",
-          description:
-            formatDuration(
-              thirtyDays.activeMilliseconds,
-            ),
-          tooltip:
-            this.createHistoricalTooltip(
-              thirtyDays,
-            ),
-          icon: "calendar",
-        },
-
-        {
-          kind: "stat",
-          label: "All time",
-          description:
-            formatDuration(
-              allTime.activeMilliseconds,
-            ),
-          tooltip:
-            this.createHistoricalTooltip(
-              allTime,
-            ),
-          icon: "history",
-        },
-      ],
-    };
-  }
-
-  private createProjectsSection(
-    stats: DailyStats,
-  ): StatisticsNode {
-    const projects =
-      this.createDimensionNodes(
-        stats.projects,
-        "project",
-        "folder",
-        stats.activeMilliseconds,
-      );
-
-    return {
-      kind: "section",
-      label: "Today's Projects",
-      icon: "folder-library",
-
-      children:
-        projects.length > 0
-          ? projects
-          : [
-              {
-                kind: "stat",
-                label:
-                  "No project activity yet",
-                icon: "info",
-              },
-            ],
-    };
-  }
-
-  private createLanguagesSection(
-    stats: DailyStats,
-  ): StatisticsNode {
-    const languages =
-      Object.entries(
-        stats.languages,
-      )
-        .sort(
-          (
-            [, first],
-            [, second],
-          ) =>
-            second.activeMilliseconds -
-            first.activeMilliseconds,
-        )
-        .map(
-          (
-            [language, value],
-          ): StatisticsNode => {
-            const duration =
-              formatDuration(
-                value.activeMilliseconds,
-              );
-
-            const percentage =
-              formatPercentage(
-                value.activeMilliseconds,
-                stats.activeMilliseconds,
-              );
-
-            return {
-              kind: "language",
-
-              label:
-                formatLanguageName(
-                  language,
-                ),
-
-              description:
-                `${duration} • ${percentage}`,
-
-              tooltip:
-                [
-                  formatLanguageName(
-                    language,
-                  ),
-                  `Time: ${duration}`,
-                  `Share of today: ${percentage}`,
-                ].join(
-                  "\n",
-                ),
-
-              icon: "code",
-            };
-          },
-        );
-
-    return {
-      kind: "section",
-      label: "Today's Languages",
-      icon: "symbol-keyword",
-
-      children:
-        languages.length > 0
-          ? languages
-          : [
-              {
-                kind: "stat",
-                label:
-                  "No language activity yet",
-                icon: "info",
-              },
-            ],
     };
   }
 
@@ -605,7 +453,9 @@ export class StatisticsTreeProvider
 
     return {
       kind: "section",
+
       label: "Recent Sessions",
+
       icon: "history",
 
       children:
@@ -614,129 +464,17 @@ export class StatisticsTreeProvider
           : [
               {
                 kind: "stat",
+
                 label:
                   "No sessions recorded yet",
+
+                tooltip:
+                  "Coding sessions will appear here once WaddleTracker records activity.",
+
                 icon: "info",
               },
             ],
     };
-  }
-
-  private createDimensionNodes(
-    dimensions: Record<
-      string,
-      DailyDimensionStats
-    >,
-    kind:
-      | "project"
-      | "language",
-    icon: string,
-    totalMilliseconds: number,
-  ): StatisticsNode[] {
-    return Object.entries(
-      dimensions,
-    )
-      .sort(
-        (
-          [, first],
-          [, second],
-        ) =>
-          second.activeMilliseconds -
-          first.activeMilliseconds,
-      )
-      .map(
-        (
-          [name, value],
-        ): StatisticsNode => {
-          const duration =
-            formatDuration(
-              value.activeMilliseconds,
-            );
-
-          const percentage =
-            formatPercentage(
-              value.activeMilliseconds,
-              totalMilliseconds,
-            );
-
-          const displayName =
-            kind === "language"
-              ? formatLanguageName(
-                  name,
-                )
-              : name;
-
-          return {
-            kind,
-
-            label:
-              displayName,
-
-            description:
-              `${duration} • ${percentage}`,
-
-            tooltip:
-              [
-                displayName,
-                `Time: ${duration}`,
-                `Share of today: ${percentage}`,
-              ].join(
-                "\n",
-              ),
-
-            icon,
-          };
-        },
-      );
-  }
-
-  private createHistoricalTooltip(
-    statistics:
-      HistoricalStatistics,
-  ): string {
-    const lines = [
-      `Total: ${formatDuration(
-        statistics.activeMilliseconds,
-      )}`,
-
-      `Active days: ${statistics.activeDays}`,
-
-      `Average: ${formatDuration(
-        statistics.averageActiveMilliseconds,
-      )} per active day`,
-    ];
-
-    if (
-      statistics.bestDay
-    ) {
-      lines.push(
-        `Best day: ${statistics.bestDay.date} (${formatDuration(
-          statistics.bestDay.activeMilliseconds,
-        )})`,
-      );
-    }
-
-    if (
-      statistics.projects[0]
-    ) {
-      lines.push(
-        `Top project: ${statistics.projects[0].name}`,
-      );
-    }
-
-    if (
-      statistics.languages[0]
-    ) {
-      lines.push(
-        `Top language: ${formatLanguageName(
-          statistics.languages[0].name,
-        )}`,
-      );
-    }
-
-    return lines.join(
-      "\n",
-    );
   }
 
   private getRecentSessionLimit():
