@@ -52,6 +52,9 @@ export async function activate(
         const currentContext =
           activityTracker.getCurrentContext();
 
+        const currentSession =
+          activityTracker.getCurrentSession();
+
         const duration =
           formatDuration(
             stats.activeMilliseconds,
@@ -67,6 +70,14 @@ export async function activate(
           `Today: ${duration}`,
           `Status: ${activityState}`,
         ];
+
+        if (currentSession) {
+          details.push(
+            `Session: ${formatDuration(
+              currentSession.activeMilliseconds,
+            )}`,
+          );
+        }
 
         if (
           currentContext.projectName
