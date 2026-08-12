@@ -74,9 +74,14 @@ export class StatisticsDashboardProvider
   }
 
   public resolveWebviewView(
-    webviewView: vscode.WebviewView,
-    _context: vscode.WebviewViewResolveContext,
-    _token: vscode.CancellationToken,
+    webviewView:
+      vscode.WebviewView,
+
+    _context:
+      vscode.WebviewViewResolveContext,
+
+    _token:
+      vscode.CancellationToken,
   ): void {
     this.view =
       webviewView;
@@ -173,7 +178,8 @@ export class StatisticsDashboardProvider
     const history =
       this.tracker.getDailyHistory();
 
-    const data: DashboardData = {
+    const data:
+      DashboardData = {
       today:
         this.statisticsService
           .getStatistics(
@@ -216,14 +222,18 @@ export class StatisticsDashboardProvider
           ),
     };
 
-    await this.view.webview.postMessage({
-      type: "statistics",
-      data,
-    });
+    await this.view.webview
+      .postMessage({
+        type:
+          "statistics",
+
+        data,
+      });
   }
 
   private async openFile(
-    filePath: string,
+    filePath:
+      string,
   ): Promise<void> {
     try {
       const document =
@@ -238,7 +248,8 @@ export class StatisticsDashboardProvider
         .showTextDocument(
           document,
           {
-            preview: true,
+            preview:
+              true,
           },
         );
     } catch {
@@ -250,7 +261,8 @@ export class StatisticsDashboardProvider
   }
 
   private getHtml(
-    webview: vscode.Webview,
+    webview:
+      vscode.Webview,
   ): string {
     const nonce =
       this.createNonce();
@@ -291,9 +303,11 @@ export class StatisticsDashboardProvider
     }
 
     body {
-      margin: 0;
+      margin:
+        0;
 
-      padding: 12px;
+      padding:
+        12px;
 
       color:
         var(
@@ -322,16 +336,19 @@ export class StatisticsDashboardProvider
     }
 
     .dashboard {
-      display: flex;
+      display:
+        flex;
 
       flex-direction:
         column;
 
-      gap: 18px;
+      gap:
+        18px;
     }
 
     .range-selector {
-      display: grid;
+      display:
+        grid;
 
       grid-template-columns:
         repeat(
@@ -342,7 +359,8 @@ export class StatisticsDashboardProvider
           )
         );
 
-      gap: 4px;
+      gap:
+        4px;
     }
 
     .range-button,
@@ -408,9 +426,16 @@ export class StatisticsDashboardProvider
         );
     }
 
-    .metrics,
-    .streak-grid {
-      display: grid;
+    /*
+     * Dashboard summary
+     *
+     * All six primary statistics now use the
+     * same contained card treatment as the
+     * Current Activity Webview.
+     */
+    .summary-grid {
+      display:
+        grid;
 
       grid-template-columns:
         repeat(
@@ -421,74 +446,72 @@ export class StatisticsDashboardProvider
           )
         );
 
-      gap: 8px;
+      gap:
+        10px;
     }
 
-    .metric,
-    .streak-card {
-      min-width: 0;
+    .summary-card {
+      position:
+        relative;
 
-      padding: 10px;
+      display:
+        flex;
+
+      flex-direction:
+        column;
+
+      justify-content:
+        center;
+
+      min-width:
+        0;
+
+      min-height:
+        74px;
+
+      padding:
+        12px;
+
+      overflow:
+        hidden;
 
       border:
         1px solid
         var(
-          --vscode-widget-border
+          --vscode-panel-border,
+          var(
+            --vscode-widget-border
+          )
         );
 
       border-radius:
-        4px;
+        6px;
 
       background:
         var(
-          --vscode-editorWidget-background
+          --vscode-editorWidget-background,
+          var(
+            --vscode-editor-background
+          )
         );
+
+      transition:
+        border-color
+          100ms ease,
+        background
+          100ms ease;
     }
 
-    .metric-label,
-    .streak-label {
-      margin-bottom:
-        4px;
-
-      color:
+    .summary-card:hover {
+      border-color:
         var(
-          --vscode-descriptionForeground
+          --vscode-focusBorder
         );
-
-      font-size:
-        11px;
-
-      overflow:
-        hidden;
-
-      text-overflow:
-        ellipsis;
-
-      white-space:
-        nowrap;
     }
 
-    .metric-value,
-    .streak-value {
-      font-size:
-        16px;
-
-      font-weight:
-        600;
-
-      overflow:
-        hidden;
-
-      text-overflow:
-        ellipsis;
-
-      white-space:
-        nowrap;
-    }
-
-    .streak-detail {
-      margin-top:
-        4px;
+    .summary-label {
+      margin-bottom:
+        7px;
 
       color:
         var(
@@ -497,6 +520,74 @@ export class StatisticsDashboardProvider
 
       font-size:
         10px;
+
+      font-weight:
+        600;
+
+      letter-spacing:
+        0.5px;
+
+      line-height:
+        1;
+
+      text-transform:
+        uppercase;
+
+      overflow:
+        hidden;
+
+      text-overflow:
+        ellipsis;
+
+      white-space:
+        nowrap;
+    }
+
+    .summary-value {
+      min-width:
+        0;
+
+      color:
+        var(
+          --vscode-foreground
+        );
+
+      font-size:
+        16px;
+
+      font-weight:
+        600;
+
+      line-height:
+        1.25;
+
+      overflow:
+        hidden;
+
+      text-overflow:
+        ellipsis;
+
+      white-space:
+        nowrap;
+    }
+
+    .summary-detail {
+      min-width:
+        0;
+
+      margin-top:
+        5px;
+
+      color:
+        var(
+          --vscode-descriptionForeground
+        );
+
+      font-size:
+        10px;
+
+      line-height:
+        1.2;
 
       overflow:
         hidden;
@@ -509,16 +600,19 @@ export class StatisticsDashboardProvider
     }
 
     .section {
-      display: flex;
+      display:
+        flex;
 
       flex-direction:
         column;
 
-      gap: 8px;
+      gap:
+        8px;
     }
 
     .section-header {
-      display: flex;
+      display:
+        flex;
 
       align-items:
         flex-start;
@@ -526,11 +620,13 @@ export class StatisticsDashboardProvider
       justify-content:
         space-between;
 
-      gap: 8px;
+      gap:
+        8px;
     }
 
     .section-title {
-      margin: 0;
+      margin:
+        0;
 
       color:
         var(
@@ -561,7 +657,8 @@ export class StatisticsDashboardProvider
     }
 
     .refresh-button {
-      border: 0;
+      border:
+        0;
 
       padding:
         2px 5px;
@@ -597,12 +694,14 @@ export class StatisticsDashboardProvider
     }
 
     .activity-chart {
-      display: flex;
+      display:
+        flex;
 
       align-items:
         stretch;
 
-      gap: 3px;
+      gap:
+        3px;
 
       min-width:
         100%;
@@ -621,7 +720,8 @@ export class StatisticsDashboardProvider
     }
 
     .activity-column {
-      display: flex;
+      display:
+        flex;
 
       flex:
         1 1 0;
@@ -640,18 +740,22 @@ export class StatisticsDashboardProvider
     }
 
     .activity-bar-area {
-      display: flex;
+      display:
+        flex;
 
-      flex: 1;
+      flex:
+        1;
 
       align-items:
         flex-end;
 
-      min-height: 0;
+      min-height:
+        0;
     }
 
     .activity-bar {
-      width: 100%;
+      width:
+        100%;
 
       min-height:
         2px;
@@ -668,7 +772,8 @@ export class StatisticsDashboardProvider
         0.85;
 
       transition:
-        opacity 100ms ease;
+        opacity
+          100ms ease;
     }
 
     .activity-bar.zero {
@@ -678,7 +783,8 @@ export class StatisticsDashboardProvider
 
     .activity-column:hover
       .activity-bar {
-      opacity: 1;
+      opacity:
+        1;
     }
 
     .activity-date-label {
@@ -714,7 +820,8 @@ export class StatisticsDashboardProvider
     }
 
     .breakdown-tabs {
-      display: grid;
+      display:
+        grid;
 
       grid-template-columns:
         repeat(
@@ -725,28 +832,33 @@ export class StatisticsDashboardProvider
           )
         );
 
-      gap: 4px;
+      gap:
+        4px;
     }
 
     .ranking {
-      display: flex;
+      display:
+        flex;
 
       flex-direction:
         column;
 
-      gap: 9px;
+      gap:
+        9px;
 
       min-height:
         20px;
     }
 
     .ranking-item {
-      display: flex;
+      display:
+        flex;
 
       flex-direction:
         column;
 
-      gap: 4px;
+      gap:
+        4px;
     }
 
     .ranking-item.clickable {
@@ -771,7 +883,8 @@ export class StatisticsDashboardProvider
     }
 
     .ranking-header {
-      display: flex;
+      display:
+        flex;
 
       align-items:
         center;
@@ -779,11 +892,13 @@ export class StatisticsDashboardProvider
       justify-content:
         space-between;
 
-      gap: 8px;
+      gap:
+        8px;
     }
 
     .ranking-name {
-      min-width: 0;
+      min-width:
+        0;
 
       overflow:
         hidden;
@@ -796,7 +911,8 @@ export class StatisticsDashboardProvider
     }
 
     .ranking-value {
-      flex-shrink: 0;
+      flex-shrink:
+        0;
 
       color:
         var(
@@ -808,7 +924,8 @@ export class StatisticsDashboardProvider
     }
 
     .progress {
-      width: 100%;
+      width:
+        100%;
 
       height:
         4px;
@@ -830,7 +947,8 @@ export class StatisticsDashboardProvider
     }
 
     .progress-fill {
-      height: 100%;
+      height:
+        100%;
 
       border-radius:
         2px;
@@ -856,7 +974,8 @@ export class StatisticsDashboardProvider
     }
 
     .heatmap {
-      display: grid;
+      display:
+        grid;
 
       grid-template-rows:
         repeat(
@@ -870,7 +989,8 @@ export class StatisticsDashboardProvider
       grid-auto-columns:
         10px;
 
-      gap: 2px;
+      gap:
+        2px;
 
       width:
         max-content;
@@ -898,8 +1018,10 @@ export class StatisticsDashboardProvider
         default;
 
       transition:
-        opacity 100ms ease,
-        outline-color 100ms ease;
+        opacity
+          100ms ease,
+        outline-color
+          100ms ease;
     }
 
     .heatmap-cell:hover {
@@ -952,7 +1074,8 @@ export class StatisticsDashboardProvider
     }
 
     .heatmap-footer {
-      display: flex;
+      display:
+        flex;
 
       align-items:
         center;
@@ -960,7 +1083,8 @@ export class StatisticsDashboardProvider
       justify-content:
         space-between;
 
-      gap: 8px;
+      gap:
+        8px;
 
       color:
         var(
@@ -972,12 +1096,14 @@ export class StatisticsDashboardProvider
     }
 
     .heatmap-legend {
-      display: flex;
+      display:
+        flex;
 
       align-items:
         center;
 
-      gap: 3px;
+      gap:
+        3px;
     }
 
     .legend-cell {
@@ -1098,7 +1224,8 @@ export class StatisticsDashboardProvider
       pointer-events:
         none;
 
-      opacity: 0;
+      opacity:
+        0;
 
       visibility:
         hidden;
@@ -1109,13 +1236,17 @@ export class StatisticsDashboardProvider
         );
 
       transition:
-        opacity 80ms ease,
-        transform 80ms ease,
-        visibility 80ms ease;
+        opacity
+          80ms ease,
+        transform
+          80ms ease,
+        visibility
+          80ms ease;
     }
 
     .dashboard-tooltip.visible {
-      opacity: 1;
+      opacity:
+        1;
 
       visibility:
         visible;
@@ -1140,8 +1271,7 @@ export class StatisticsDashboardProvider
           14px;
       }
 
-      .metrics,
-      .streak-grid {
+      .summary-grid {
         grid-template-columns:
           1fr;
       }
@@ -1226,134 +1356,125 @@ export class StatisticsDashboardProvider
     </div>
 
     <div
-      class="metrics"
+      class="summary-grid"
     >
-      <div
-        class="metric"
+      <section
+        class="summary-card"
       >
         <div
-          class="metric-label"
+          class="summary-label"
         >
-          Coding time
+          Coding Time
         </div>
 
         <div
-          class="metric-value"
+          class="summary-value"
           id="total-time"
         >
           —
         </div>
-      </div>
+      </section>
 
-      <div
-        class="metric"
+      <section
+        class="summary-card"
       >
         <div
-          class="metric-label"
+          class="summary-label"
         >
-          Active days
+          Active Days
         </div>
 
         <div
-          class="metric-value"
+          class="summary-value"
           id="active-days"
         >
           —
         </div>
-      </div>
+      </section>
 
-      <div
-        class="metric"
+      <section
+        class="summary-card"
       >
         <div
-          class="metric-label"
+          class="summary-label"
         >
-          Daily average
+          Daily Average
         </div>
 
         <div
-          class="metric-value"
+          class="summary-value"
           id="average-time"
         >
           —
         </div>
-      </div>
+      </section>
 
-      <div
-        class="metric"
+      <section
+        class="summary-card"
       >
         <div
-          class="metric-label"
+          class="summary-label"
         >
-          Best day
+          Best Day
         </div>
 
         <div
-          class="metric-value"
+          class="summary-value"
           id="best-day"
         >
           —
         </div>
-      </div>
+
+        <div
+          class="summary-detail"
+          id="best-day-detail"
+        ></div>
+      </section>
+
+      <section
+        class="summary-card"
+      >
+        <div
+          class="summary-label"
+        >
+          Current Streak
+        </div>
+
+        <div
+          class="summary-value"
+          id="current-streak"
+        >
+          —
+        </div>
+
+        <div
+          class="summary-detail"
+          id="current-streak-detail"
+        ></div>
+      </section>
+
+      <section
+        class="summary-card"
+      >
+        <div
+          class="summary-label"
+        >
+          Longest Streak
+        </div>
+
+        <div
+          class="summary-value"
+          id="longest-streak"
+        >
+          —
+        </div>
+
+        <div
+          class="summary-detail"
+          id="longest-streak-detail"
+        ></div>
+      </section>
     </div>
-
-    <section
-      class="section"
-    >
-      <h2
-        class="section-title"
-      >
-        Streaks
-      </h2>
-
-      <div
-        class="streak-grid"
-      >
-        <div
-          class="streak-card"
-        >
-          <div
-            class="streak-label"
-          >
-            Current streak
-          </div>
-
-          <div
-            class="streak-value"
-            id="current-streak"
-          >
-            —
-          </div>
-
-          <div
-            class="streak-detail"
-            id="current-streak-detail"
-          ></div>
-        </div>
-
-        <div
-          class="streak-card"
-        >
-          <div
-            class="streak-label"
-          >
-            Longest streak
-          </div>
-
-          <div
-            class="streak-value"
-            id="longest-streak"
-          >
-            —
-          </div>
-
-          <div
-            class="streak-detail"
-            id="longest-streak-detail"
-          ></div>
-        </div>
-      </div>
-    </section>
 
     <section
       class="section"
@@ -1582,6 +1703,11 @@ export class StatisticsDashboardProvider
         "best-day"
       );
 
+    const bestDayDetail =
+      document.getElementById(
+        "best-day-detail"
+      );
+
     const currentStreak =
       document.getElementById(
         "current-streak"
@@ -1684,7 +1810,8 @@ export class StatisticsDashboardProvider
       "click",
       () => {
         vscode.postMessage({
-          type: "refresh",
+          type:
+            "refresh",
         });
       },
     );
@@ -1750,14 +1877,18 @@ export class StatisticsDashboardProvider
     }
 
     function render() {
-      if (!dashboardData) {
+      if (
+        !dashboardData
+      ) {
         return;
       }
 
       const statistics =
         getSelectedStatistics();
 
-      if (!statistics) {
+      if (
+        !statistics
+      ) {
         return;
       }
 
@@ -1772,7 +1903,7 @@ export class StatisticsDashboardProvider
 
       activeDays.textContent =
         String(
-          statistics.activeDays
+          statistics.activeDays,
         );
 
       averageTime.textContent =
@@ -1780,70 +1911,82 @@ export class StatisticsDashboardProvider
           statistics.averageActiveMilliseconds,
         );
 
-      bestDay.textContent =
-        statistics.bestDay
-          ? formatDuration(
-              statistics
-                .bestDay
-                .activeMilliseconds,
-            )
-          : "—";
-
       if (
         statistics.bestDay
       ) {
+        bestDay.textContent =
+          formatDuration(
+            statistics
+              .bestDay
+              .activeMilliseconds,
+          );
+
+        bestDayDetail.textContent =
+          formatShortDate(
+            statistics.bestDay.date,
+          );
+
         attachTooltip(
           bestDay,
           [
             formatFullDate(
-              statistics.bestDay.date
+              statistics.bestDay.date,
             ),
+
             formatDuration(
               statistics
                 .bestDay
                 .activeMilliseconds,
             ),
           ].join(
-            "\\n"
+            "\\n",
           ),
         );
+      } else {
+        bestDay.textContent =
+          "—";
+
+        bestDayDetail.textContent =
+          "";
       }
 
       activityContext.textContent =
         formatRangeContext(
-          statistics
+          statistics,
         );
 
       renderStreaks(
-        dashboardData.streaks
+        dashboardData.streaks,
       );
 
       renderActivityChart(
-        statistics.daily
+        statistics.daily,
       );
 
       renderBreakdown();
 
       renderHeatmap(
-        dashboardData.heatmap
+        dashboardData.heatmap,
       );
     }
 
     function renderStreaks(
       streaks
     ) {
-      if (!streaks) {
+      if (
+        !streaks
+      ) {
         return;
       }
 
       currentStreak.textContent =
         formatDays(
-          streaks.currentDays
+          streaks.currentDays,
         );
 
       longestStreak.textContent =
         formatDays(
-          streaks.longestDays
+          streaks.longestDays,
         );
 
       currentStreakDetail.textContent =
@@ -1863,12 +2006,13 @@ export class StatisticsDashboardProvider
         streaks.currentDays > 0
           ? [
               "Current streak",
+
               formatStreakRange(
                 streaks.currentStartDate,
                 streaks.currentEndDate,
               ),
             ].join(
-              "\\n"
+              "\\n",
             )
           : "No active coding streak",
       );
@@ -1878,12 +2022,13 @@ export class StatisticsDashboardProvider
         streaks.longestDays > 0
           ? [
               "Longest streak",
+
               formatStreakRange(
                 streaks.longestStartDate,
                 streaks.longestEndDate,
               ),
             ].join(
-              "\\n"
+              "\\n",
             )
           : "No coding streak recorded",
       );
@@ -1893,7 +2038,9 @@ export class StatisticsDashboardProvider
       const statistics =
         getSelectedStatistics();
 
-      if (!statistics) {
+      if (
+        !statistics
+      ) {
         return;
       }
 
@@ -1950,7 +2097,9 @@ export class StatisticsDashboardProvider
     }
 
     function getSelectedStatistics() {
-      if (!dashboardData) {
+      if (
+        !dashboardData
+      ) {
         return undefined;
       }
 
@@ -1991,7 +2140,8 @@ export class StatisticsDashboardProvider
       ) {
         activityChart.style.minWidth =
           Math.max(
-            daily.length * 8,
+            daily.length *
+              8,
             320,
           ) +
           "px";
@@ -2012,7 +2162,7 @@ export class StatisticsDashboardProvider
       for (
         let index = 0;
         index <
-        daily.length;
+          daily.length;
         index += 1
       ) {
         const day =
@@ -2032,6 +2182,7 @@ export class StatisticsDashboardProvider
             formatFullDate(
               day.date
             ),
+
             formatDuration(
               day.activeMilliseconds
             ),
@@ -2066,7 +2217,8 @@ export class StatisticsDashboardProvider
         }
 
         const percentage =
-          day.activeMilliseconds > 0
+          day.activeMilliseconds >
+          0
             ? Math.max(
                 (
                   day.activeMilliseconds /
@@ -2078,7 +2230,8 @@ export class StatisticsDashboardProvider
             : 2;
 
         bar.style.height =
-          percentage + "%";
+          percentage +
+          "%";
 
         barArea.appendChild(
           bar
@@ -2155,7 +2308,9 @@ export class StatisticsDashboardProvider
 
       const previous =
         parseLocalDate(
-          daily[index - 1].date
+          daily[
+            index - 1
+          ].date
         );
 
       return (
@@ -2184,12 +2339,14 @@ export class StatisticsDashboardProvider
           "empty-state";
 
         if (
-          mode === "languages"
+          mode ===
+          "languages"
         ) {
           empty.textContent =
             "No language activity recorded.";
         } else if (
-          mode === "files"
+          mode ===
+          "files"
         ) {
           empty.textContent =
             "No file activity recorded.";
@@ -2221,7 +2378,8 @@ export class StatisticsDashboardProvider
           "ranking-item";
 
         if (
-          mode === "files"
+          mode ===
+          "files"
         ) {
           wrapper.classList.add(
             "clickable"
@@ -2288,14 +2446,16 @@ export class StatisticsDashboardProvider
           "ranking-name";
 
         if (
-          mode === "languages"
+          mode ===
+          "languages"
         ) {
           name.textContent =
             formatLanguageName(
               item.name
             );
         } else if (
-          mode === "files"
+          mode ===
+          "files"
         ) {
           name.textContent =
             getFileName(
@@ -2308,7 +2468,8 @@ export class StatisticsDashboardProvider
 
         const tooltipLines =
           [
-            mode === "languages"
+            mode ===
+            "languages"
               ? formatLanguageName(
                   item.name
                 )
@@ -2324,7 +2485,8 @@ export class StatisticsDashboardProvider
           ];
 
         if (
-          mode === "files"
+          mode ===
+          "files"
         ) {
           tooltipLines.push(
             "Click to open file"
@@ -2405,8 +2567,11 @@ export class StatisticsDashboardProvider
       filePath
     ) {
       vscode.postMessage({
-        type: "openFile",
-        path: filePath,
+        type:
+          "openFile",
+
+        path:
+          filePath,
       });
     }
 
@@ -2440,7 +2605,7 @@ export class StatisticsDashboardProvider
       for (
         let index = 0;
         index <
-        leadingEmptyCells;
+          leadingEmptyCells;
         index += 1
       ) {
         const placeholder =
@@ -2490,7 +2655,9 @@ export class StatisticsDashboardProvider
             formatFullDate(
               day.date
             ),
-            day.activeMilliseconds > 0
+
+            day.activeMilliseconds >
+            0
               ? formatDuration(
                   day.activeMilliseconds
                 ) +
@@ -2598,12 +2765,14 @@ export class StatisticsDashboardProvider
         "focus",
         () => {
           const rectangle =
-            element.getBoundingClientRect();
+            element
+              .getBoundingClientRect();
 
           showTooltip(
             element.dataset.tooltip,
             rectangle.left +
-              rectangle.width / 2,
+              rectangle.width /
+                2,
             rectangle.top,
           );
         },
@@ -2655,7 +2824,8 @@ export class StatisticsDashboardProvider
         8;
 
       const rectangle =
-        tooltip.getBoundingClientRect();
+        tooltip
+          .getBoundingClientRect();
 
       let left =
         x +
@@ -2881,7 +3051,9 @@ export class StatisticsDashboardProvider
       const parts =
         date
           .split("-")
-          .map(Number);
+          .map(
+            Number,
+          );
 
       return new Date(
         parts[0],
@@ -3069,7 +3241,8 @@ export class StatisticsDashboardProvider
     updateBreakdownButtons();
 
     vscode.postMessage({
-      type: "ready",
+      type:
+        "ready",
     });
   </script>
 </body>
@@ -3082,7 +3255,8 @@ export class StatisticsDashboardProvider
     const characters =
       "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
-    let nonce = "";
+    let nonce =
+      "";
 
     for (
       let index = 0;
