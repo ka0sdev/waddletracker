@@ -152,6 +152,14 @@ export class SessionManager {
       undefined;
   }
 
+  public reset(): void {
+    this.currentSession =
+      undefined;
+
+    this.state.sessions.length =
+      0;
+  }
+
   public getCurrentSession():
     CodingSession | undefined {
     if (
