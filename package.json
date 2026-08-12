@@ -126,6 +126,33 @@
           "default": "today",
           "markdownDescription": "Controls what WaddleTracker displays in the status bar.",
           "order": 30
+        },
+        "waddleTracker.tracking.excludedProjects": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "Project names WaddleTracker should not track. Supports `*`, `**`, and `?` wildcard patterns, for example `private-*`.",
+          "order": 40
+        },
+        "waddleTracker.tracking.excludedFiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "File names or workspace-relative paths WaddleTracker should not track. Supports glob-style `*`, `**`, and `?` wildcards, for example `**/.env*`, `secrets/**`, or `*.key`.",
+          "order": 50
+        },
+        "waddleTracker.tracking.excludedLanguages": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "VS Code language identifiers WaddleTracker should not track. Wildcards are supported, for example `plaintext` or `*react`.",
+          "order": 60
         }
       }
     }
