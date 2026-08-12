@@ -1,11 +1,19 @@
 import * as vscode from "vscode";
 
 import { ActivityTracker } from "../tracking/ActivityTracker";
+
+import { CodingSession } from "../types/CodingSession";
+
 import {
   DailyDimensionStats,
   DailyStats,
 } from "../types/TrackerState";
-import { CodingSession } from "../types/CodingSession";
+
+import {
+  formatDuration,
+  formatLanguageName,
+  formatPercentage,
+} from "../utils/formatters";
 
 type StatisticsNodeKind =
   | "section"
@@ -50,6 +58,18 @@ export class StatisticsTreeProvider
       this.tracker.onDidUpdate(
         () => {
           this.refresh();
+        },
+      ),
+
+      vscode.workspace.onDidChangeConfiguration(
+        (event) => {
+          if (
+            event.affectsConfiguration(
+              "waddleTracker.sidebar",
+            )
+          ) {
+            this.refresh();
+          }
         },
       ),
     );
@@ -179,7 +199,7 @@ export class StatisticsTreeProvider
         label: "Current session",
         description:
           session
-            ? this.formatDuration(
+            ? formatDuration(
                 session.activeMilliseconds,
               )
             : "No active session",
@@ -190,7 +210,7 @@ export class StatisticsTreeProvider
         kind: "stat",
         label: "Today",
         description:
-          this.formatDuration(
+          formatDuration(
             stats.activeMilliseconds,
           ),
         icon: "calendar",
@@ -212,7 +232,7 @@ export class StatisticsTreeProvider
         kind: "stat",
         label: "Language",
         description:
-          this.formatLanguageName(
+          formatLanguageName(
             languageId,
           ),
         icon: "code",
@@ -235,12 +255,14 @@ export class StatisticsTreeProvider
         stats.projects,
         "project",
         "folder",
+        stats.activeMilliseconds,
       );
 
     return {
       kind: "section",
       label: "Today's Projects",
       icon: "folder-library",
+
       children:
         projects.length > 0
           ? projects
@@ -273,24 +295,50 @@ export class StatisticsTreeProvider
         .map(
           (
             [language, value],
-          ): StatisticsNode => ({
-            kind: "language",
-            label:
-              this.formatLanguageName(
-                language,
-              ),
-            description:
-              this.formatDuration(
+          ): StatisticsNode => {
+            const duration =
+              formatDuration(
                 value.activeMilliseconds,
-              ),
-            icon: "code",
-          }),
+              );
+
+            const percentage =
+              formatPercentage(
+                value.activeMilliseconds,
+                stats.activeMilliseconds,
+              );
+
+            return {
+              kind: "language",
+
+              label:
+                formatLanguageName(
+                  language,
+                ),
+
+              description:
+                `${duration} • ${percentage}`,
+
+              tooltip:
+                [
+                  formatLanguageName(
+                    language,
+                  ),
+                  `Time: ${duration}`,
+                  `Share of today: ${percentage}`,
+                ].join(
+                  "\n",
+                ),
+
+              icon: "code",
+            };
+          },
         );
 
     return {
       kind: "section",
       label: "Today's Languages",
       icon: "symbol-keyword",
+
       children:
         languages.length > 0
           ? languages
@@ -307,10 +355,13 @@ export class StatisticsTreeProvider
 
   private createRecentSessionsSection():
     StatisticsNode {
+    const limit =
+      this.getRecentSessionLimit();
+
     const sessions =
       [...this.tracker.getSessions()]
         .slice(
-          -5,
+          -limit,
         )
         .reverse()
         .map(
@@ -326,24 +377,32 @@ export class StatisticsTreeProvider
                 ? "Completed"
                 : "Active";
 
+            const duration =
+              formatDuration(
+                session.activeMilliseconds,
+              );
+
             return {
               kind: "session",
+
               label:
                 project,
+
               description:
-                this.formatDuration(
-                  session.activeMilliseconds,
-                ),
+                duration,
+
               tooltip:
                 [
                   project,
-                  state,
+                  `Status: ${state}`,
+                  `Duration: ${duration}`,
                   this.formatSessionRange(
                     session,
                   ),
                 ].join(
                   "\n",
                 ),
+
               icon:
                 session.endedAt
                   ? "history"
@@ -356,6 +415,7 @@ export class StatisticsTreeProvider
       kind: "section",
       label: "Recent Sessions",
       icon: "history",
+
       children:
         sessions.length > 0
           ? sessions
@@ -379,6 +439,7 @@ export class StatisticsTreeProvider
       | "project"
       | "language",
     icon: string,
+    totalMilliseconds: number,
   ): StatisticsNode[] {
     return Object.entries(
       dimensions,
@@ -394,72 +455,52 @@ export class StatisticsTreeProvider
       .map(
         (
           [name, value],
-        ): StatisticsNode => ({
-          kind,
-          label: name,
-          description:
-            this.formatDuration(
+        ): StatisticsNode => {
+          const duration =
+            formatDuration(
               value.activeMilliseconds,
-            ),
-          icon,
-        }),
+            );
+
+          const percentage =
+            formatPercentage(
+              value.activeMilliseconds,
+              totalMilliseconds,
+            );
+
+          return {
+            kind,
+
+            label:
+              name,
+
+            description:
+              `${duration} • ${percentage}`,
+
+            tooltip:
+              [
+                name,
+                `Time: ${duration}`,
+                `Share of today: ${percentage}`,
+              ].join(
+                "\n",
+              ),
+
+            icon,
+          };
+        },
       );
   }
 
-  private formatLanguageName(
-    languageId: string,
-  ): string {
-    const knownLanguages:
-      Record<string, string> = {
-      javascript:
-        "JavaScript",
+  private getRecentSessionLimit():
+    number {
+    const configuration =
+      vscode.workspace.getConfiguration(
+        "waddleTracker",
+      );
 
-      javascriptreact:
-        "JavaScript React",
-
-      typescript:
-        "TypeScript",
-
-      typescriptreact:
-        "TypeScript React",
-
-      json:
-        "JSON",
-
-      jsonc:
-        "JSON with Comments",
-
-      markdown:
-        "Markdown",
-
-      html:
-        "HTML",
-
-      css:
-        "CSS",
-
-      scss:
-        "SCSS",
-
-      python:
-        "Python",
-
-      go:
-        "Go",
-
-      rust:
-        "Rust",
-
-      shellscript:
-        "Shell Script",
-
-      yaml:
-        "YAML",
-    };
-
-    return (
-      knownLanguages[languageId] ??
-      languageId
+    return configuration.get<number>(
+      "sidebar.recentSessions",
+      5,
     );
   }
 
@@ -488,7 +529,9 @@ export class StatisticsTreeProvider
       );
 
     if (!ended) {
-      return `${startLabel} → now`;
+      return (
+        `${startLabel} → now`
+      );
     }
 
     const endLabel =
@@ -502,74 +545,6 @@ export class StatisticsTreeProvider
 
     return (
       `${startLabel} → ${endLabel}`
-    );
-  }
-
-  private formatDuration(
-    milliseconds: number,
-  ): string {
-    const totalSeconds =
-      Math.floor(
-        milliseconds /
-          1000,
-      );
-
-    const hours =
-      Math.floor(
-        totalSeconds /
-          3600,
-      );
-
-    const minutes =
-      Math.floor(
-        (
-          totalSeconds %
-          3600
-        ) /
-          60,
-      );
-
-    const seconds =
-      totalSeconds %
-      60;
-
-    if (hours > 0) {
-      return [
-        String(
-          hours,
-        ),
-
-        String(
-          minutes,
-        ).padStart(
-          2,
-          "0",
-        ),
-
-        String(
-          seconds,
-        ).padStart(
-          2,
-          "0",
-        ),
-      ].join(
-        ":",
-      );
-    }
-
-    return [
-      String(
-        minutes,
-      ),
-
-      String(
-        seconds,
-      ).padStart(
-        2,
-        "0",
-      ),
-    ].join(
-      ":",
     );
   }
 }
