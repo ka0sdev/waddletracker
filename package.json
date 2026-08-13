@@ -49,6 +49,10 @@
         "title": "WaddleTracker: Include Current File"
       },
       {
+        "command": "waddletracker.exportStatistics",
+        "title": "WaddleTracker: Export Statistics"
+      },
+      {
         "command": "waddletracker.resetStatistics",
         "title": "WaddleTracker: Reset All Statistics"
       }
