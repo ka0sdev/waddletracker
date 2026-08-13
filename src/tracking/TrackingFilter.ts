@@ -28,12 +28,6 @@ export class TrackingFilter {
         [],
       );
 
-    const excludedFiles =
-      configuration.get<string[]>(
-        "tracking.excludedFiles",
-        [],
-      );
-
     const excludedLanguages =
       configuration.get<string[]>(
         "tracking.excludedLanguages",
@@ -49,51 +43,31 @@ export class TrackingFilter {
           excludedProjects,
         );
 
-      if (pattern) {
+      if (
+        pattern
+      ) {
         return {
-          kind: "project",
-          value: context.projectName,
+          kind:
+            "project",
+
+          value:
+            context.projectName,
+
           pattern,
         };
       }
     }
 
+    const fileExclusion =
+      this.getFileExclusion(
+        context.filePath,
+        context.fileName,
+      );
+
     if (
-      context.filePath ||
-      context.fileName
+      fileExclusion
     ) {
-      const candidates =
-        [
-          context.filePath,
-          context.fileName,
-        ].filter(
-          (
-            value,
-          ): value is string =>
-            Boolean(value),
-        );
-
-      for (
-        const candidate
-        of candidates
-      ) {
-        const pattern =
-          this.findMatchingPattern(
-            this.normalizePath(
-              candidate,
-            ),
-            excludedFiles,
-            true,
-          );
-
-        if (pattern) {
-          return {
-            kind: "file",
-            value: candidate,
-            pattern,
-          };
-        }
-      }
+      return fileExclusion;
     }
 
     if (
@@ -105,10 +79,90 @@ export class TrackingFilter {
           excludedLanguages,
         );
 
-      if (pattern) {
+      if (
+        pattern
+      ) {
         return {
-          kind: "language",
-          value: context.languageId,
+          kind:
+            "language",
+
+          value:
+            context.languageId,
+
+          pattern,
+        };
+      }
+    }
+
+    return undefined;
+  }
+
+  public getFileExclusion(
+    filePath:
+      string |
+      undefined,
+
+    fileName?:
+      string |
+      undefined,
+  ): TrackingExclusion | undefined {
+    if (
+      !filePath &&
+      !fileName
+    ) {
+      return undefined;
+    }
+
+    const configuration =
+      vscode.workspace.getConfiguration(
+        "waddleTracker",
+      );
+
+    const excludedFiles =
+      configuration.get<string[]>(
+        "tracking.excludedFiles",
+        [],
+      );
+
+    const candidates =
+      [
+        filePath,
+        fileName,
+      ].filter(
+        (
+          value,
+        ): value is string =>
+          Boolean(
+            value,
+          ),
+      );
+
+    for (
+      const candidate
+      of candidates
+    ) {
+      const normalizedCandidate =
+        this.normalizePath(
+          candidate,
+        );
+
+      const pattern =
+        this.findMatchingPattern(
+          normalizedCandidate,
+          excludedFiles,
+          true,
+        );
+
+      if (
+        pattern
+      ) {
+        return {
+          kind:
+            "file",
+
+          value:
+            candidate,
+
           pattern,
         };
       }
