@@ -203,6 +203,74 @@ export class ActivityTracker
     );
   }
 
+  public async createStateSnapshot():
+    Promise<TrackerState> {
+    /*
+     * Account for activity up to the moment the
+     * export is requested before creating the
+     * snapshot.
+     */
+    this.tick();
+
+    await this.flush();
+
+    return {
+      version:
+        this.state.version,
+
+      daily:
+        Object.fromEntries(
+          Object.entries(
+            this.state.daily,
+          ).map(
+            (
+              [
+                date,
+                day,
+              ],
+            ) => [
+              date,
+              {
+                ...day,
+
+                projects:
+                  this.cloneDimensionStats(
+                    day.projects,
+                  ),
+
+                languages:
+                  this.cloneDimensionStats(
+                    day.languages,
+                  ),
+
+                files:
+                  this.cloneDimensionStats(
+                    day.files,
+                  ),
+              },
+            ],
+          ),
+        ),
+
+      sessions:
+        this.state.sessions.map(
+          (session) => ({
+            ...session,
+
+            languages:
+              this.cloneDimensionStats(
+                session.languages,
+              ),
+
+            files:
+              this.cloneDimensionStats(
+                session.files,
+              ),
+          }),
+        ),
+    };
+  }
+
   public async resetStatistics():
     Promise<void> {
     const now =
@@ -780,6 +848,43 @@ export class ActivityTracker
       first.remoteName ===
         second.remoteName
     );
+  }
+
+  private cloneDimensionStats<
+    T extends {
+      activeMilliseconds:
+        number;
+    },
+  >(
+    collection:
+      Record<
+        string,
+        T
+      >,
+  ): Record<
+    string,
+    T
+  > {
+    return Object.fromEntries(
+      Object.entries(
+        collection,
+      ).map(
+        (
+          [
+            key,
+            statistics,
+          ],
+        ) => [
+          key,
+          {
+            ...statistics,
+          },
+        ],
+      ),
+    ) as Record<
+      string,
+      T
+    >;
   }
 
   private getSessionEndTimestamp(
