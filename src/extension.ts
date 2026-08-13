@@ -10,6 +10,7 @@ import { StatisticsService } from "./statistics/StatisticsService";
 
 import { ActivityTracker } from "./tracking/ActivityTracker";
 import { ContextResolver } from "./tracking/ContextResolver";
+import { TrackingFilter } from "./tracking/TrackingFilter";
 
 import { CurrentActivityProvider } from "./ui/CurrentActivityProvider";
 import { SessionHistoryTreeProvider } from "./ui/SessionHistoryTreeProvider";
@@ -40,6 +41,9 @@ export async function activate(
   const contextResolver =
     new ContextResolver();
 
+  const trackingFilter =
+    new TrackingFilter();
+
   const statisticsService =
     new StatisticsService();
 
@@ -51,6 +55,7 @@ export async function activate(
       storage,
       state,
       contextResolver,
+      trackingFilter,
     );
 
   const exportService =
@@ -404,6 +409,197 @@ export async function activate(
       },
     );
 
+  const excludeExplorerFileCommand =
+    vscode.commands.registerCommand(
+      "waddletracker.excludeFile",
+      async (
+        resource:
+          vscode.Uri,
+      ) => {
+        if (
+          !resource
+        ) {
+          return;
+        }
+
+        const filePath =
+          normalizeResourcePath(
+            resource.fsPath,
+          );
+
+        const added =
+          await addTrackingExclusion(
+            "tracking.excludedFiles",
+            filePath,
+          );
+
+        if (
+          added
+        ) {
+          await vscode.window
+            .showInformationMessage(
+              `WaddleTracker will no longer track "${resource.path.split("/").at(-1) ?? filePath}".`,
+            );
+        }
+      },
+    );
+
+  const includeExplorerFileCommand =
+    vscode.commands.registerCommand(
+      "waddletracker.includeFile",
+      async (
+        resource:
+          vscode.Uri,
+      ) => {
+        if (
+          !resource
+        ) {
+          return;
+        }
+
+        const filePath =
+          normalizeResourcePath(
+            resource.fsPath,
+          );
+
+        const fileName =
+          resource.path
+            .split("/")
+            .at(
+              -1,
+            );
+
+        const exclusion =
+          trackingFilter
+            .getFileExclusion(
+              filePath,
+              fileName,
+            );
+
+        if (
+          !exclusion
+        ) {
+          await vscode.window
+            .showInformationMessage(
+              "The selected file is not excluded from WaddleTracker.",
+            );
+
+          return;
+        }
+
+        const removed =
+          await removeTrackingExclusion(
+            "tracking.excludedFiles",
+            exclusion.pattern,
+            "file",
+          );
+
+        if (
+          removed
+        ) {
+          await vscode.window
+            .showInformationMessage(
+              `Removed file exclusion "${exclusion.pattern}".`,
+            );
+        }
+      },
+    );
+
+  const excludeExplorerDirectoryCommand =
+    vscode.commands.registerCommand(
+      "waddletracker.excludeDirectory",
+      async (
+        resource:
+          vscode.Uri,
+      ) => {
+        if (
+          !resource
+        ) {
+          return;
+        }
+
+        const directoryPath =
+          normalizeResourcePath(
+            resource.fsPath,
+          );
+
+        const pattern =
+          `${directoryPath}/**`;
+
+        const added =
+          await addTrackingExclusion(
+            "tracking.excludedFiles",
+            pattern,
+          );
+
+        if (
+          added
+        ) {
+          await vscode.window
+            .showInformationMessage(
+              `WaddleTracker will no longer track files inside "${resource.path.split("/").at(-1) ?? directoryPath}".`,
+            );
+        }
+      },
+    );
+
+  const includeExplorerDirectoryCommand =
+    vscode.commands.registerCommand(
+      "waddletracker.includeDirectory",
+      async (
+        resource:
+          vscode.Uri,
+      ) => {
+        if (
+          !resource
+        ) {
+          return;
+        }
+
+        const directoryPath =
+          normalizeResourcePath(
+            resource.fsPath,
+          );
+
+        
+        const probePath =
+          `${directoryPath}/__waddletracker_probe__`;
+
+        const exclusion =
+          trackingFilter
+            .getFileExclusion(
+              probePath,
+            );
+
+        if (
+          !exclusion
+        ) {
+          await vscode.window
+            .showInformationMessage(
+              "The selected directory is not excluded from WaddleTracker.",
+            );
+
+          return;
+        }
+
+        const removed =
+          await removeTrackingExclusion(
+            "tracking.excludedFiles",
+            exclusion.pattern,
+            "directory",
+          );
+
+        if (
+          removed
+        ) {
+          await vscode.window
+            .showInformationMessage(
+              `Removed directory exclusion "${exclusion.pattern}".`,
+            );
+        }
+      },
+    );
+
   const exportStatisticsCommand =
     vscode.commands.registerCommand(
       "waddletracker.exportStatistics",
@@ -505,6 +701,10 @@ export async function activate(
     excludeCurrentFileCommand,
     includeCurrentProjectCommand,
     includeCurrentFileCommand,
+    excludeExplorerFileCommand,
+    includeExplorerFileCommand,
+    excludeExplorerDirectoryCommand,
+    includeExplorerDirectoryCommand,
     exportStatisticsCommand,
     resetStatisticsCommand,
   );
@@ -584,7 +784,8 @@ async function removeTrackingExclusion(
 
   kind:
     "project" |
-    "file",
+    "file" |
+    "directory",
 ): Promise<boolean> {
   const configuration =
     vscode.workspace.getConfiguration(
@@ -654,6 +855,25 @@ async function removeTrackingExclusion(
   );
 
   return true;
+}
+
+function normalizeResourcePath(
+  value:
+    string,
+): string {
+  return value
+    .replace(
+      /\\/g,
+      "/",
+    )
+    .replace(
+      /\/+/g,
+      "/",
+    )
+    .replace(
+      /\/$/,
+      "",
+    );
 }
 
 async function refreshAllViews(
