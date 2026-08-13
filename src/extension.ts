@@ -1,5 +1,7 @@
 import * as vscode from "vscode";
 
+import { ExportService } from "./data/ExportService";
+
 import { SessionHistoryService } from "./sessions/SessionHistoryService";
 
 import { JsonStorageProvider } from "./storage/JsonStorageProvider";
@@ -49,6 +51,22 @@ export async function activate(
       storage,
       state,
       contextResolver,
+    );
+
+  const exportService =
+    new ExportService(
+      async () => {
+        if (
+          !activityTracker
+        ) {
+          throw new Error(
+            "WaddleTracker is not active.",
+          );
+        }
+
+        return activityTracker
+          .createStateSnapshot();
+      },
     );
 
   const statusBar =
@@ -386,6 +404,39 @@ export async function activate(
       },
     );
 
+  const exportStatisticsCommand =
+    vscode.commands.registerCommand(
+      "waddletracker.exportStatistics",
+      async () => {
+        try {
+          const exported =
+            await exportService
+              .exportStatistics();
+
+          if (
+            exported
+          ) {
+            await vscode.window
+              .showInformationMessage(
+                "WaddleTracker statistics exported successfully.",
+              );
+          }
+        } catch (
+          error
+        ) {
+          const message =
+            error instanceof Error
+              ? error.message
+              : "Unknown export error.";
+
+          await vscode.window
+            .showErrorMessage(
+              `WaddleTracker could not export statistics: ${message}`,
+            );
+        }
+      },
+    );
+
   const resetStatisticsCommand =
     vscode.commands.registerCommand(
       "waddletracker.resetStatistics",
@@ -454,6 +505,7 @@ export async function activate(
     excludeCurrentFileCommand,
     includeCurrentProjectCommand,
     includeCurrentFileCommand,
+    exportStatisticsCommand,
     resetStatisticsCommand,
   );
 
