@@ -55,6 +55,30 @@
       {
         "command": "waddletracker.resetStatistics",
         "title": "WaddleTracker: Reset All Statistics"
+      },
+      {
+        "command": "waddletracker.excludeFile",
+        "title": "Exclude File from Tracking",
+        "category": "WaddleTracker",
+        "icon": "$(eye-closed)"
+      },
+      {
+        "command": "waddletracker.includeFile",
+        "title": "Include File in Tracking",
+        "category": "WaddleTracker",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "waddletracker.excludeDirectory",
+        "title": "Exclude Directory from Tracking",
+        "category": "WaddleTracker",
+        "icon": "$(eye-closed)"
+      },
+      {
+        "command": "waddletracker.includeDirectory",
+        "title": "Include Directory in Tracking",
+        "category": "WaddleTracker",
+        "icon": "$(eye)"
       }
     ],
     "viewsContainers": {
@@ -75,7 +99,8 @@
         },
         {
           "id": "waddletracker.sessionHistory",
-          "name": "Session History"
+          "name": "Session History",
+          "visibility": "collapsed"
         },
         {
           "type": "webview",
@@ -115,6 +140,53 @@
           "command": "waddletracker.openSettings",
           "when": "view == waddletracker.dashboard",
           "group": "navigation@2"
+        }
+      ],
+      "explorer/context": [
+        {
+          "submenu": "waddletracker.explorer",
+          "when": "resourceScheme == file",
+          "group": "waddletracker@9"
+        }
+      ],
+      "waddletracker.explorer": [
+        {
+          "command": "waddletracker.excludeFile",
+          "when": "resourceScheme == file && !explorerResourceIsFolder",
+          "group": "1_tracking@1"
+        },
+        {
+          "command": "waddletracker.includeFile",
+          "when": "resourceScheme == file && !explorerResourceIsFolder",
+          "group": "1_tracking@2"
+        },
+        {
+          "command": "waddletracker.excludeDirectory",
+          "when": "resourceScheme == file && explorerResourceIsFolder",
+          "group": "1_tracking@1"
+        },
+        {
+          "command": "waddletracker.includeDirectory",
+          "when": "resourceScheme == file && explorerResourceIsFolder",
+          "group": "1_tracking@2"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "waddletracker.excludeDirectory",
+          "when": "false"
+        },
+        {
+          "command": "waddletracker.excludeFile",
+          "when": "false"
+        },
+        {
+          "command": "waddletracker.includeDirectory",
+          "when": "false"
+        },
+        {
+          "command": "waddletracker.includeFile",
+          "when": "false"
         }
       ]
     },
@@ -179,7 +251,13 @@
           "order": 60
         }
       }
-    }
+    },
+    "submenus": [
+      {
+        "id": "waddletracker.explorer",
+        "label": "WaddleTracker"
+      }
+    ]
   },
   "scripts": {
     "compile": "node esbuild.js",
