@@ -94,6 +94,9 @@ interface CodingActivityData {
 interface PanelMessage {
   type?:
     string;
+
+  path?:
+    string;
 }
 
 export class CodingActivityPanel
@@ -160,6 +163,18 @@ export class CodingActivityPanel
             "refresh"
         ) {
           await this.sendActivity();
+
+          return;
+        }
+
+        if (
+          message.type ===
+            "openFile" &&
+          message.path
+        ) {
+          await this.openFile(
+            message.path,
+          );
         }
       },
       undefined,
@@ -486,6 +501,35 @@ export class CodingActivityPanel
     return (
       `${year}-${month}-${day}`
     );
+  }
+
+  private async openFile(
+    filePath:
+      string,
+  ): Promise<void> {
+    try {
+      const document =
+        await vscode.workspace
+          .openTextDocument(
+            vscode.Uri.file(
+              filePath,
+            ),
+          );
+
+      await vscode.window
+        .showTextDocument(
+          document,
+          {
+            preview:
+              true,
+          },
+        );
+    } catch {
+      await vscode.window
+        .showWarningMessage(
+          `WaddleTracker could not open ${filePath}.`,
+        );
+    }
   }
 
   private getHtml(
@@ -1077,6 +1121,38 @@ export class CodingActivityPanel
 
       min-width:
         0;
+    }
+
+    .detail-item.clickable {
+      margin:
+        -3px;
+
+      padding:
+        3px;
+
+      border-radius:
+        4px;
+
+      cursor:
+        pointer;
+    }
+
+    .detail-item.clickable:hover {
+      background:
+        var(
+          --vscode-list-hoverBackground
+        );
+    }
+
+    .detail-item.clickable:focus {
+      outline:
+        1px solid
+        var(
+          --vscode-focusBorder
+        );
+
+      outline-offset:
+        1px;
     }
 
     .detail-name {
@@ -1986,6 +2062,58 @@ export class CodingActivityPanel
         ) {
           name.title =
             entry.name;
+
+          item.classList.add(
+            "clickable"
+          );
+
+          item.tabIndex =
+            0;
+
+          item.setAttribute(
+            "role",
+            "button"
+          );
+
+          item.setAttribute(
+            "aria-label",
+            "Open " +
+            fileName(
+              entry.name
+            )
+          );
+
+          const openFile =
+            () => {
+              vscode.postMessage({
+                type:
+                  "openFile",
+
+                path:
+                  entry.name,
+              });
+            };
+
+          item.addEventListener(
+            "click",
+            openFile
+          );
+
+          item.addEventListener(
+            "keydown",
+            (event) => {
+              if (
+                event.key ===
+                  "Enter" ||
+                event.key ===
+                  " "
+              ) {
+                event.preventDefault();
+
+                openFile();
+              }
+            },
+          );
         }
 
         const value =
