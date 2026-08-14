@@ -83,6 +83,11 @@
         "title": "Include Directory in Tracking",
         "category": "WaddleTracker",
         "icon": "$(eye)"
+      },
+      {
+        "command": "waddletracker.openCodingActivity",
+        "title": "WaddleTracker: Open Coding Activity",
+        "icon": "$(graph)"
       }
     ],
     "viewsContainers": {
@@ -144,6 +149,11 @@
           "command": "waddletracker.openSettings",
           "when": "view == waddletracker.dashboard",
           "group": "navigation@2"
+        },
+        {
+          "command": "waddletracker.openCodingActivity",
+          "when": "view == waddletracker.dashboard",
+          "group": "navigation@3"
         }
       ],
       "explorer/context": [
