@@ -7,6 +7,33 @@ import {
 const DEFAULT_TIMEOUT_MS =
   15_000;
 
+export type HttpSyncErrorKind =
+  | "transient"
+  | "configuration"
+  | "protocol";
+
+export class HttpSyncError
+  extends Error
+{
+  public constructor(
+    message:
+      string,
+
+    public readonly kind:
+      HttpSyncErrorKind,
+
+    public readonly statusCode?:
+      number,
+  ) {
+    super(
+      message,
+    );
+
+    this.name =
+      "HttpSyncError";
+  }
+}
+
 export interface HttpSyncProviderOptions {
   endpoint:
     string;
@@ -66,8 +93,9 @@ export class HttpSyncProvider
       this.timeoutMilliseconds <=
         0
     ) {
-      throw new Error(
+      throw new HttpSyncError(
         "Sync timeout must be a positive number.",
+        "configuration",
       );
     }
   }
@@ -126,10 +154,14 @@ export class HttpSyncProvider
               )}`
             : "";
 
-        throw new Error(
+        throw new HttpSyncError(
           `WaddleTracker sync failed with HTTP ${String(
             response.status,
           )}.${suffix}`,
+          this.classifyHttpStatus(
+            response.status,
+          ),
+          response.status,
         );
       }
 
@@ -142,8 +174,10 @@ export class HttpSyncProvider
             responseText,
           ) as SyncResponseBody;
       } catch {
-        throw new Error(
+        throw new HttpSyncError(
           "WaddleTracker sync endpoint returned invalid JSON.",
+          "protocol",
+          response.status,
         );
       }
 
@@ -154,18 +188,35 @@ export class HttpSyncProvider
       error
     ) {
       if (
+        error instanceof
+          HttpSyncError
+      ) {
+        throw error;
+      }
+
+      if (
         error instanceof Error &&
         error.name ===
           "AbortError"
       ) {
-        throw new Error(
+        throw new HttpSyncError(
           `WaddleTracker sync request timed out after ${String(
             this.timeoutMilliseconds,
           )}ms.`,
+          "transient",
         );
       }
 
-      throw error;
+      throw new HttpSyncError(
+        `WaddleTracker sync request failed: ${
+          error instanceof Error
+            ? error.message
+            : String(
+                error,
+              )
+        }`,
+        "transient",
+      );
     } finally {
       clearTimeout(
         timeout,
@@ -211,8 +262,9 @@ export class HttpSyncProvider
       typeof value.accepted !==
       "boolean"
     ) {
-      throw new Error(
+      throw new HttpSyncError(
         "WaddleTracker sync endpoint returned an invalid accepted value.",
+        "protocol",
       );
     }
 
@@ -222,8 +274,9 @@ export class HttpSyncProvider
       value.snapshotId.length ===
         0
     ) {
-      throw new Error(
+      throw new HttpSyncError(
         "WaddleTracker sync endpoint returned an invalid snapshot id.",
+        "protocol",
       );
     }
 
@@ -236,8 +289,9 @@ export class HttpSyncProvider
         ).getTime(),
       )
     ) {
-      throw new Error(
+      throw new HttpSyncError(
         "WaddleTracker sync endpoint returned an invalid received timestamp.",
+        "protocol",
       );
     }
 
@@ -264,8 +318,9 @@ export class HttpSyncProvider
       trimmed.length ===
       0
     ) {
-      throw new Error(
+      throw new HttpSyncError(
         "WaddleTracker sync endpoint is not configured.",
+        "configuration",
       );
     }
 
@@ -278,8 +333,9 @@ export class HttpSyncProvider
           trimmed,
         );
     } catch {
-      throw new Error(
+      throw new HttpSyncError(
         "WaddleTracker sync endpoint is not a valid URL.",
+        "configuration",
       );
     }
 
@@ -289,8 +345,9 @@ export class HttpSyncProvider
       url.protocol !==
         "http:"
     ) {
-      throw new Error(
+      throw new HttpSyncError(
         "WaddleTracker sync endpoint must use HTTP or HTTPS.",
+        "configuration",
       );
     }
 
@@ -298,6 +355,39 @@ export class HttpSyncProvider
       /\/+$/,
       "",
     );
+  }
+
+  private classifyHttpStatus(
+    statusCode:
+      number,
+  ): HttpSyncErrorKind {
+    if (
+      statusCode ===
+        408 ||
+      statusCode ===
+        425 ||
+      statusCode ===
+        429 ||
+      statusCode >=
+        500
+    ) {
+      return "transient";
+    }
+
+    if (
+      statusCode ===
+        400 ||
+      statusCode ===
+        401 ||
+      statusCode ===
+        403 ||
+      statusCode ===
+        404
+    ) {
+      return "configuration";
+    }
+
+    return "protocol";
   }
 
   private truncate(

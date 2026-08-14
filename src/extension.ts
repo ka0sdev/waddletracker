@@ -736,7 +736,10 @@ export async function activate(
 
         const result =
           await autoSyncService
-            .runOnce();
+            .runOnce({
+              automatic:
+                false,
+            });
 
         if (
           result.synchronized
@@ -744,6 +747,30 @@ export async function activate(
           await vscode.window
             .showInformationMessage(
               "WaddleTracker synchronized successfully.",
+            );
+
+          return;
+        }
+
+        if (
+          result.reason ===
+            "configuration_failure"
+        ) {
+          await vscode.window
+            .showErrorMessage(
+              "WaddleTracker could not synchronize because the configured endpoint or credentials were rejected. The newest snapshot remains cached locally. Update the sync configuration to retry.",
+            );
+
+          return;
+        }
+
+        if (
+          result.reason ===
+            "protocol_failure"
+        ) {
+          await vscode.window
+            .showErrorMessage(
+              "WaddleTracker could not synchronize because the server returned an unexpected response. The newest snapshot remains cached locally.",
             );
 
           return;

@@ -3,6 +3,7 @@ import {
 } from "../types/TrackerState";
 
 import {
+  HttpSyncError,
   HttpSyncProvider,
 } from "./HttpSyncProvider";
 
@@ -28,6 +29,7 @@ export type AutoSyncState =
   | "syncing"
   | "synced"
   | "pending"
+  | "blocked"
   | "failed";
 
 export interface AutoSyncResult {
@@ -46,7 +48,14 @@ export interface AutoSyncResult {
     "endpoint_not_configured" |
     "already_running" |
     "remote_failure" |
+    "configuration_failure" |
+    "protocol_failure" |
     "local_failure";
+}
+
+export interface AutoSyncRunOptions {
+  automatic?:
+    boolean;
 }
 
 export interface AutoSyncStateSubscription {
@@ -155,6 +164,17 @@ export class AutoSyncService {
         .getConfiguration();
 
     if (
+      this.state ===
+        "blocked" ||
+      this.state ===
+        "failed"
+    ) {
+      this.setState(
+        "idle",
+      );
+    }
+
+    if (
       !this.shouldSchedule(
         configuration,
       )
@@ -173,8 +193,13 @@ export class AutoSyncService {
       );
   }
 
-  public async runOnce():
-    Promise<AutoSyncResult> {
+  public async runOnce(
+    options:
+      AutoSyncRunOptions = {},
+  ): Promise<AutoSyncResult> {
+    const automatic =
+      options.automatic ??
+      true;
     if (
       this.running
     ) {
@@ -255,6 +280,7 @@ export class AutoSyncService {
     }
 
     if (
+      automatic &&
       !configuration.autoSync
     ) {
       this.setState(
@@ -383,6 +409,69 @@ export class AutoSyncService {
               pending,
               error,
             );
+
+        if (
+          error instanceof
+            HttpSyncError
+        ) {
+          if (
+            error.kind ===
+              "configuration"
+          ) {
+            this.stopTimer();
+
+            this.setState(
+              "blocked",
+            );
+
+            console.warn(
+              `WaddleTracker synchronization is blocked by the configured endpoint or credentials. The newest snapshot remains cached locally. ${pending.lastError ?? ""}`.trim(),
+            );
+
+            return {
+              attempted:
+                true,
+
+              synchronized:
+                false,
+
+              pending:
+                true,
+
+              reason:
+                "configuration_failure",
+            };
+          }
+
+          if (
+            error.kind ===
+              "protocol"
+          ) {
+            this.stopTimer();
+
+            this.setState(
+              "failed",
+            );
+
+            console.error(
+              `WaddleTracker synchronization failed because the server response did not match the expected protocol. The newest snapshot remains cached locally. ${pending.lastError ?? ""}`.trim(),
+            );
+
+            return {
+              attempted:
+                true,
+
+              synchronized:
+                false,
+
+              pending:
+                true,
+
+              reason:
+                "protocol_failure",
+            };
+          }
+        }
 
         this.setState(
           "pending",

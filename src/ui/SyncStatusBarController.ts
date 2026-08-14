@@ -176,6 +176,17 @@ export class SyncStatusBarController
 
         break;
 
+      case "blocked":
+        this.item.text =
+          "$(warning) Sync blocked";
+
+        this.item.tooltip =
+          "WaddleTracker synchronization is blocked by the configured endpoint or credentials. The newest snapshot remains cached locally. Click to show sync status.";
+
+        this.item.show();
+
+        break;
+
       case "failed":
         this.item.text =
           "$(warning) Sync failed";
