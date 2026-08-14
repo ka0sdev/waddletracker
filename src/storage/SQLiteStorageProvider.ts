@@ -1,5 +1,6 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import { isDeepStrictEqual } from "node:util";
 
 import Database from "better-sqlite3";
 
@@ -11,6 +12,7 @@ import {
   createEmptyDailyStats,
   createEmptyTrackerState,
   DailyDimensionStats,
+  DailyStats,
   TrackerState,
 } from "../types/TrackerState";
 
@@ -87,6 +89,14 @@ interface SessionDimensionRow {
     number;
 }
 
+interface PersistedSession {
+  session:
+    CodingSession;
+
+  sortOrder:
+    number;
+}
+
 export class SQLiteStorageProvider
   implements StorageProvider
 {
@@ -98,6 +108,10 @@ export class SQLiteStorageProvider
 
   private database:
     Database.Database |
+    undefined;
+
+  private persistedState:
+    TrackerState |
     undefined;
 
   constructor(
@@ -168,6 +182,397 @@ export class SQLiteStorageProvider
 
   public async loadState():
     Promise<TrackerState> {
+    const state =
+      this.readState();
+
+    this.persistedState =
+      this.cloneState(
+        state,
+      );
+
+    return state;
+  }
+
+  public async saveState(
+    state:
+      TrackerState,
+  ): Promise<void> {
+    if (
+      state.version !==
+      4
+    ) {
+      throw new Error(
+        `SQLiteStorageProvider only supports TrackerState version 4. Received version ${String(
+          state.version,
+        )}.`,
+      );
+    }
+
+    const database =
+      this.requireDatabase();
+
+    const previousState =
+      this.persistedState ??
+      this.readState();
+
+    const upsertDaily =
+      database.prepare(
+        `
+          INSERT INTO daily_stats (
+            date,
+            active_milliseconds
+          )
+          VALUES (?, ?)
+          ON CONFLICT(date)
+          DO UPDATE SET
+            active_milliseconds =
+              excluded.active_milliseconds
+        `,
+      );
+
+    const deleteDaily =
+      database.prepare(
+        `
+          DELETE FROM daily_stats
+          WHERE date = ?
+        `,
+      );
+
+    const deleteDailyProjects =
+      database.prepare(
+        `
+          DELETE FROM daily_projects
+          WHERE date = ?
+        `,
+      );
+
+    const deleteDailyLanguages =
+      database.prepare(
+        `
+          DELETE FROM daily_languages
+          WHERE date = ?
+        `,
+      );
+
+    const deleteDailyFiles =
+      database.prepare(
+        `
+          DELETE FROM daily_files
+          WHERE date = ?
+        `,
+      );
+
+    const insertDailyProject =
+      database.prepare(
+        `
+          INSERT INTO daily_projects (
+            date,
+            dimension_key,
+            active_milliseconds
+          )
+          VALUES (?, ?, ?)
+        `,
+      );
+
+    const insertDailyLanguage =
+      database.prepare(
+        `
+          INSERT INTO daily_languages (
+            date,
+            dimension_key,
+            active_milliseconds
+          )
+          VALUES (?, ?, ?)
+        `,
+      );
+
+    const insertDailyFile =
+      database.prepare(
+        `
+          INSERT INTO daily_files (
+            date,
+            dimension_key,
+            active_milliseconds
+          )
+          VALUES (?, ?, ?)
+        `,
+      );
+
+    const upsertSession =
+      database.prepare(
+        `
+          INSERT INTO sessions (
+            id,
+            sort_order,
+            started_at,
+            ended_at,
+            last_activity_at,
+            active_milliseconds,
+            workspace_name,
+            project_name,
+            remote_name
+          )
+          VALUES (
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?
+          )
+          ON CONFLICT(id)
+          DO UPDATE SET
+            sort_order =
+              excluded.sort_order,
+            started_at =
+              excluded.started_at,
+            ended_at =
+              excluded.ended_at,
+            last_activity_at =
+              excluded.last_activity_at,
+            active_milliseconds =
+              excluded.active_milliseconds,
+            workspace_name =
+              excluded.workspace_name,
+            project_name =
+              excluded.project_name,
+            remote_name =
+              excluded.remote_name
+        `,
+      );
+
+    const deleteSession =
+      database.prepare(
+        `
+          DELETE FROM sessions
+          WHERE id = ?
+        `,
+      );
+
+    const deleteSessionLanguages =
+      database.prepare(
+        `
+          DELETE FROM session_languages
+          WHERE session_id = ?
+        `,
+      );
+
+    const deleteSessionFiles =
+      database.prepare(
+        `
+          DELETE FROM session_files
+          WHERE session_id = ?
+        `,
+      );
+
+    const insertSessionLanguage =
+      database.prepare(
+        `
+          INSERT INTO session_languages (
+            session_id,
+            dimension_key,
+            active_milliseconds
+          )
+          VALUES (?, ?, ?)
+        `,
+      );
+
+    const insertSessionFile =
+      database.prepare(
+        `
+          INSERT INTO session_files (
+            session_id,
+            dimension_key,
+            active_milliseconds
+          )
+          VALUES (?, ?, ?)
+        `,
+      );
+
+    const saveTransaction =
+      database.transaction(
+        () => {
+          const currentDates =
+            new Set(
+              Object.keys(
+                state.daily,
+              ),
+            );
+
+          for (
+            const previousDate
+            of Object.keys(
+              previousState.daily,
+            )
+          ) {
+            if (
+              !currentDates.has(
+                previousDate,
+              )
+            ) {
+              deleteDaily.run(
+                previousDate,
+              );
+            }
+          }
+
+          for (
+            const [
+              date,
+              daily,
+            ]
+            of Object.entries(
+              state.daily,
+            )
+          ) {
+            const previousDaily =
+              previousState.daily[
+                date
+              ];
+
+            if (
+              previousDaily &&
+              isDeepStrictEqual(
+                previousDaily,
+                daily,
+              )
+            ) {
+              continue;
+            }
+
+            upsertDaily.run(
+              daily.date,
+              daily.activeMilliseconds,
+            );
+
+            this.replaceDailyDimensions(
+              daily,
+              deleteDailyProjects,
+              deleteDailyLanguages,
+              deleteDailyFiles,
+              insertDailyProject,
+              insertDailyLanguage,
+              insertDailyFile,
+            );
+          }
+
+          const previousSessions =
+            this.createSessionMap(
+              previousState.sessions,
+            );
+
+          const currentSessions =
+            this.createSessionMap(
+              state.sessions,
+            );
+
+          for (
+            const previousId
+            of previousSessions.keys()
+          ) {
+            if (
+              !currentSessions.has(
+                previousId,
+              )
+            ) {
+              deleteSession.run(
+                previousId,
+              );
+            }
+          }
+
+          state.sessions.forEach(
+            (
+              session,
+              index,
+            ) => {
+              const previous =
+                previousSessions.get(
+                  session.id,
+                );
+
+              if (
+                previous &&
+                previous.sortOrder ===
+                  index &&
+                isDeepStrictEqual(
+                  previous.session,
+                  session,
+                )
+              ) {
+                return;
+              }
+
+              upsertSession.run(
+                session.id,
+                index,
+                session.startedAt,
+                session.endedAt ??
+                  null,
+                session.lastActivityAt,
+                session.activeMilliseconds,
+                session.workspaceName ??
+                  null,
+                session.projectName ??
+                  null,
+                session.remoteName ??
+                  null,
+              );
+
+              deleteSessionLanguages.run(
+                session.id,
+              );
+
+              deleteSessionFiles.run(
+                session.id,
+              );
+
+              this.saveSessionDimensionRecord(
+                session.id,
+                session.languages,
+                insertSessionLanguage,
+              );
+
+              this.saveSessionDimensionRecord(
+                session.id,
+                session.files,
+                insertSessionFile,
+              );
+            },
+          );
+        },
+      );
+
+    saveTransaction();
+
+    this.persistedState =
+      this.cloneState(
+        state,
+      );
+  }
+
+  public async dispose():
+    Promise<void> {
+    if (
+      !this.database
+    ) {
+      return;
+    }
+
+    this.database.close();
+
+    this.database =
+      undefined;
+
+    this.persistedState =
+      undefined;
+  }
+
+  private readState():
+    TrackerState {
     const database =
       this.requireDatabase();
 
@@ -346,215 +751,180 @@ export class SQLiteStorageProvider
     return state;
   }
 
-  public async saveState(
-    state:
-      TrackerState,
-  ): Promise<void> {
-    if (
-      state.version !==
-      4
-    ) {
-      throw new Error(
-        `SQLiteStorageProvider only supports TrackerState version 4. Received version ${String(
-          state.version,
-        )}.`,
-      );
-    }
+  private replaceDailyDimensions(
+    daily:
+      DailyStats,
 
-    const database =
-      this.requireDatabase();
+    deleteProjects:
+      Database.Statement,
 
-    const insertDaily =
-      database.prepare(
-        `
-          INSERT INTO daily_stats (
-            date,
-            active_milliseconds
-          )
-          VALUES (?, ?)
-        `,
-      );
+    deleteLanguages:
+      Database.Statement,
 
-    const insertDailyProject =
-      database.prepare(
-        `
-          INSERT INTO daily_projects (
-            date,
-            dimension_key,
-            active_milliseconds
-          )
-          VALUES (?, ?, ?)
-        `,
-      );
+    deleteFiles:
+      Database.Statement,
 
-    const insertDailyLanguage =
-      database.prepare(
-        `
-          INSERT INTO daily_languages (
-            date,
-            dimension_key,
-            active_milliseconds
-          )
-          VALUES (?, ?, ?)
-        `,
-      );
+    insertProject:
+      Database.Statement,
 
-    const insertDailyFile =
-      database.prepare(
-        `
-          INSERT INTO daily_files (
-            date,
-            dimension_key,
-            active_milliseconds
-          )
-          VALUES (?, ?, ?)
-        `,
-      );
+    insertLanguage:
+      Database.Statement,
 
-    const insertSession =
-      database.prepare(
-        `
-          INSERT INTO sessions (
-            id,
-            sort_order,
-            started_at,
-            ended_at,
-            last_activity_at,
-            active_milliseconds,
-            workspace_name,
-            project_name,
-            remote_name
-          )
-          VALUES (
-            ?,
-            ?,
-            ?,
-            ?,
-            ?,
-            ?,
-            ?,
-            ?,
-            ?
-          )
-        `,
-      );
+    insertFile:
+      Database.Statement,
+  ): void {
+    deleteProjects.run(
+      daily.date,
+    );
 
-    const insertSessionLanguage =
-      database.prepare(
-        `
-          INSERT INTO session_languages (
-            session_id,
-            dimension_key,
-            active_milliseconds
-          )
-          VALUES (?, ?, ?)
-        `,
-      );
+    deleteLanguages.run(
+      daily.date,
+    );
 
-    const insertSessionFile =
-      database.prepare(
-        `
-          INSERT INTO session_files (
-            session_id,
-            dimension_key,
-            active_milliseconds
-          )
-          VALUES (?, ?, ?)
-        `,
-      );
+    deleteFiles.run(
+      daily.date,
+    );
 
-    const saveTransaction =
-      database.transaction(
-        () => {
-          database.exec(
-            `
-              DELETE FROM daily_stats;
-              DELETE FROM sessions;
-            `,
-          );
+    this.saveDimensionRecord(
+      daily.date,
+      daily.projects,
+      insertProject,
+    );
 
-          for (
-            const daily
-            of Object.values(
-              state.daily,
-            )
-          ) {
-            insertDaily.run(
-              daily.date,
-              daily.activeMilliseconds,
-            );
+    this.saveDimensionRecord(
+      daily.date,
+      daily.languages,
+      insertLanguage,
+    );
 
-            this.saveDimensionRecord(
-              daily.date,
-              daily.projects,
-              insertDailyProject,
-            );
-
-            this.saveDimensionRecord(
-              daily.date,
-              daily.languages,
-              insertDailyLanguage,
-            );
-
-            this.saveDimensionRecord(
-              daily.date,
-              daily.files,
-              insertDailyFile,
-            );
-          }
-
-          state.sessions.forEach(
-            (
-              session,
-              index,
-            ) => {
-              insertSession.run(
-                session.id,
-                index,
-                session.startedAt,
-                session.endedAt ??
-                  null,
-                session.lastActivityAt,
-                session.activeMilliseconds,
-                session.workspaceName ??
-                  null,
-                session.projectName ??
-                  null,
-                session.remoteName ??
-                  null,
-              );
-
-              this.saveSessionDimensionRecord(
-                session.id,
-                session.languages,
-                insertSessionLanguage,
-              );
-
-              this.saveSessionDimensionRecord(
-                session.id,
-                session.files,
-                insertSessionFile,
-              );
-            },
-          );
-        },
-      );
-
-    saveTransaction();
+    this.saveDimensionRecord(
+      daily.date,
+      daily.files,
+      insertFile,
+    );
   }
 
-  public async dispose():
-    Promise<void> {
-    if (
-      !this.database
-    ) {
-      return;
-    }
+  private createSessionMap(
+    sessions:
+      readonly CodingSession[],
+  ): Map<
+    string,
+    PersistedSession
+  > {
+    return new Map(
+      sessions.map(
+        (
+          session,
+          index,
+        ) => [
+          session.id,
+          {
+            session,
 
-    this.database.close();
+            sortOrder:
+              index,
+          },
+        ],
+      ),
+    );
+  }
 
-    this.database =
-      undefined;
+  private cloneState(
+    state:
+      TrackerState,
+  ): TrackerState {
+    return {
+      version:
+        4,
+
+      daily:
+        Object.fromEntries(
+          Object.entries(
+            state.daily,
+          ).map(
+            (
+              [
+                date,
+                daily,
+              ],
+            ) => [
+              date,
+              {
+                ...daily,
+
+                projects:
+                  this.cloneDimensionRecord(
+                    daily.projects,
+                  ),
+
+                languages:
+                  this.cloneDimensionRecord(
+                    daily.languages,
+                  ),
+
+                files:
+                  this.cloneDimensionRecord(
+                    daily.files,
+                  ),
+              },
+            ],
+          ),
+        ),
+
+      sessions:
+        state.sessions.map(
+          (session) => ({
+            ...session,
+
+            languages:
+              this.cloneDimensionRecord(
+                session.languages,
+              ),
+
+            files:
+              this.cloneDimensionRecord(
+                session.files,
+              ),
+          }),
+        ),
+    };
+  }
+
+  private cloneDimensionRecord<
+    T extends {
+      activeMilliseconds:
+        number;
+    },
+  >(
+    collection:
+      Record<
+        string,
+        T
+      >,
+  ): Record<
+    string,
+    T
+  > {
+    return Object.fromEntries(
+      Object.entries(
+        collection,
+      ).map(
+        (
+          [
+            key,
+            statistics,
+          ],
+        ) => [
+          key,
+          {
+            ...statistics,
+          },
+        ],
+      ),
+    ) as Record<
+      string,
+      T
+    >;
   }
 
   private initializeSchema(
