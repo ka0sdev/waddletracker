@@ -23,6 +23,13 @@ import {
   SyncSnapshotService,
 } from "./SyncSnapshotService";
 
+export type AutoSyncState =
+  | "idle"
+  | "syncing"
+  | "synced"
+  | "pending"
+  | "failed";
+
 export interface AutoSyncResult {
   attempted:
     boolean;
@@ -38,7 +45,13 @@ export interface AutoSyncResult {
     "automatic_sync_disabled" |
     "endpoint_not_configured" |
     "already_running" |
-    "remote_failure";
+    "remote_failure" |
+    "local_failure";
+}
+
+export interface AutoSyncStateSubscription {
+  dispose():
+    void;
 }
 
 export class AutoSyncService {
@@ -52,6 +65,18 @@ export class AutoSyncService {
   private disposed =
     false;
 
+  private state:
+    AutoSyncState =
+    "idle";
+
+  private readonly stateListeners =
+    new Set<
+      (
+        state:
+          AutoSyncState,
+      ) => void
+    >();
+
   constructor(
     private readonly configurationService:
       SyncConfigurationService,
@@ -59,12 +84,39 @@ export class AutoSyncService {
     private readonly pendingStore:
       PendingSyncStore,
 
-    private readonly getState:
+    private readonly getTrackerState:
       () => Promise<TrackerState>,
 
     private readonly snapshotService =
       new SyncSnapshotService(),
   ) {}
+
+  public getSyncState():
+    AutoSyncState {
+    return this.state;
+  }
+
+  public onDidChangeState(
+    listener:
+      (
+        state:
+          AutoSyncState,
+      ) => void,
+  ): AutoSyncStateSubscription {
+    this.stateListeners.add(
+      listener,
+    );
+
+    return {
+      dispose:
+        () => {
+          this.stateListeners
+            .delete(
+              listener,
+            );
+        },
+    };
+  }
 
   public async initialize():
     Promise<void> {
@@ -80,6 +132,10 @@ export class AutoSyncService {
     if (
       pending
     ) {
+      this.setState(
+        "pending",
+      );
+
       void this.runOnce();
     }
   }
@@ -130,23 +186,33 @@ export class AutoSyncService {
           false,
 
         pending:
-          Boolean(
-            await this.pendingStore
-              .load(),
-          ),
+          this.state ===
+            "pending",
 
         reason:
           "already_running",
       };
     }
 
-    const configuration =
-      await this.configurationService
-        .getConfiguration();
+    let configuration:
+      SyncConfiguration;
 
-    if (
-      !configuration.enabled
+    try {
+      configuration =
+        await this.configurationService
+          .getConfiguration();
+    } catch (
+      error
     ) {
+      this.setState(
+        "failed",
+      );
+
+      console.error(
+        "WaddleTracker could not read synchronization configuration.",
+        error,
+      );
+
       return {
         attempted:
           false,
@@ -156,8 +222,31 @@ export class AutoSyncService {
 
         pending:
           Boolean(
-            await this.pendingStore
-              .load(),
+            await this.safeLoadPending(),
+          ),
+
+        reason:
+          "local_failure",
+      };
+    }
+
+    if (
+      !configuration.enabled
+    ) {
+      this.setState(
+        "idle",
+      );
+
+      return {
+        attempted:
+          false,
+
+        synchronized:
+          false,
+
+        pending:
+          Boolean(
+            await this.safeLoadPending(),
           ),
 
         reason:
@@ -168,6 +257,10 @@ export class AutoSyncService {
     if (
       !configuration.autoSync
     ) {
+      this.setState(
+        "idle",
+      );
+
       return {
         attempted:
           false,
@@ -177,8 +270,7 @@ export class AutoSyncService {
 
         pending:
           Boolean(
-            await this.pendingStore
-              .load(),
+            await this.safeLoadPending(),
           ),
 
         reason:
@@ -191,6 +283,10 @@ export class AutoSyncService {
         .length ===
       0
     ) {
+      this.setState(
+        "failed",
+      );
+
       return {
         attempted:
           false,
@@ -200,8 +296,7 @@ export class AutoSyncService {
 
         pending:
           Boolean(
-            await this.pendingStore
-              .load(),
+            await this.safeLoadPending(),
           ),
 
         reason:
@@ -212,9 +307,13 @@ export class AutoSyncService {
     this.running =
       true;
 
+    this.setState(
+      "syncing",
+    );
+
     try {
       const state =
-        await this.getState();
+        await this.getTrackerState();
 
       const snapshot =
         this.snapshotService
@@ -261,6 +360,10 @@ export class AutoSyncService {
         await this.pendingStore
           .clear();
 
+        this.setState(
+          "synced",
+        );
+
         return {
           attempted:
             true,
@@ -281,6 +384,10 @@ export class AutoSyncService {
               error,
             );
 
+        this.setState(
+          "pending",
+        );
+
         console.warn(
           `WaddleTracker automatic sync failed. Snapshot remains cached locally for retry. ${pending.lastError ?? ""}`.trim(),
         );
@@ -299,6 +406,33 @@ export class AutoSyncService {
             "remote_failure",
         };
       }
+    } catch (
+      error
+    ) {
+      this.setState(
+        "failed",
+      );
+
+      console.error(
+        "WaddleTracker synchronization failed before the remote request could complete.",
+        error,
+      );
+
+      return {
+        attempted:
+          false,
+
+        synchronized:
+          false,
+
+        pending:
+          Boolean(
+            await this.safeLoadPending(),
+          ),
+
+        reason:
+          "local_failure",
+      };
     } finally {
       this.running =
         false;
@@ -311,6 +445,42 @@ export class AutoSyncService {
       true;
 
     this.stopTimer();
+
+    this.stateListeners
+      .clear();
+  }
+
+  private setState(
+    state:
+      AutoSyncState,
+  ): void {
+    if (
+      this.state ===
+      state
+    ) {
+      return;
+    }
+
+    this.state =
+      state;
+
+    for (
+      const listener
+      of this.stateListeners
+    ) {
+      listener(
+        state,
+      );
+    }
+  }
+
+  private async safeLoadPending() {
+    try {
+      return await this.pendingStore
+        .load();
+    } catch {
+      return undefined;
+    }
   }
 
   private shouldSchedule(

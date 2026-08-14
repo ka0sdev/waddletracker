@@ -24,6 +24,7 @@ import { CurrentActivityProvider } from "./ui/CurrentActivityProvider";
 import { SessionHistoryTreeProvider } from "./ui/SessionHistoryTreeProvider";
 import { StatisticsDashboardProvider } from "./ui/StatisticsDashboardProvider";
 import { StatusBarController } from "./ui/StatusBarController";
+import { SyncStatusBarController } from "./ui/SyncStatusBarController";
 
 import {
   formatDurationClock,
@@ -148,6 +149,11 @@ export async function activate(
   const statusBar =
     new StatusBarController(
       activityTracker,
+    );
+
+  const syncStatusBar =
+    new SyncStatusBarController(
+      autoSyncService,
     );
 
   const currentActivityProvider =
@@ -1119,6 +1125,7 @@ export async function activate(
     activityTracker,
 
     statusBar,
+    syncStatusBar,
 
     currentActivityProvider,
     currentActivityRegistration,
