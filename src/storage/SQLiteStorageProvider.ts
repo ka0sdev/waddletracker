@@ -168,6 +168,10 @@ export class SQLiteStorageProvider
       this.initializeSchema(
         database,
       );
+
+      this.normalizeStoredLanguageKeys(
+        database,
+      );
     } catch (
       error
     ) {
@@ -569,6 +573,179 @@ export class SQLiteStorageProvider
 
     this.persistedState =
       undefined;
+  }
+
+  private normalizeStoredLanguageKeys(
+    database:
+      Database.Database,
+  ): void {
+    const requiresNormalization =
+      (
+        table:
+          "daily_languages" |
+          "session_languages",
+      ): boolean => {
+        const row =
+          database.prepare(
+            `
+              SELECT EXISTS (
+                SELECT 1
+                FROM ${table}
+                WHERE dimension_key !=
+                  LOWER(
+                    TRIM(
+                      dimension_key
+                    )
+                  )
+              ) AS requires_normalization
+            `,
+          ).get() as {
+            requires_normalization:
+              number;
+          };
+
+        return (
+          row.requires_normalization ===
+          1
+        );
+      };
+
+    if (
+      !requiresNormalization(
+        "daily_languages",
+      ) &&
+      !requiresNormalization(
+        "session_languages",
+      )
+    ) {
+      return;
+    }
+
+    const normalize =
+      database.transaction(
+        () => {
+          const dailyRows =
+            database.prepare(
+              `
+                SELECT
+                  date,
+                  LOWER(
+                    TRIM(
+                      dimension_key
+                    )
+                  ) AS dimension_key,
+                  SUM(
+                    active_milliseconds
+                  ) AS active_milliseconds
+                FROM daily_languages
+                GROUP BY
+                  date,
+                  LOWER(
+                    TRIM(
+                      dimension_key
+                    )
+                  )
+              `,
+            ).all() as
+            DailyDimensionRow[];
+
+          const sessionRows =
+            database.prepare(
+              `
+                SELECT
+                  session_id,
+                  LOWER(
+                    TRIM(
+                      dimension_key
+                    )
+                  ) AS dimension_key,
+                  SUM(
+                    active_milliseconds
+                  ) AS active_milliseconds
+                FROM session_languages
+                GROUP BY
+                  session_id,
+                  LOWER(
+                    TRIM(
+                      dimension_key
+                    )
+                  )
+              `,
+            ).all() as
+            SessionDimensionRow[];
+
+          database.exec(
+            `
+              DELETE FROM daily_languages;
+              DELETE FROM session_languages;
+            `,
+          );
+
+          const insertDailyLanguage =
+            database.prepare(
+              `
+                INSERT INTO daily_languages (
+                  date,
+                  dimension_key,
+                  active_milliseconds
+                )
+                VALUES (?, ?, ?)
+              `,
+            );
+
+          for (
+            const row
+            of dailyRows
+          ) {
+            if (
+              row.dimension_key
+                .length ===
+              0
+            ) {
+              continue;
+            }
+
+            insertDailyLanguage.run(
+              row.date,
+              row.dimension_key,
+              row.active_milliseconds,
+            );
+          }
+
+          const insertSessionLanguage =
+            database.prepare(
+              `
+                INSERT INTO session_languages (
+                  session_id,
+                  dimension_key,
+                  active_milliseconds
+                )
+                VALUES (?, ?, ?)
+              `,
+            );
+
+          for (
+            const row
+            of sessionRows
+          ) {
+            if (
+              row.dimension_key
+                .length ===
+              0
+            ) {
+              continue;
+            }
+
+            insertSessionLanguage.run(
+              row.session_id,
+              row.dimension_key,
+              row.active_milliseconds,
+            );
+          }
+        },
+      );
+
+    normalize();
   }
 
   private readState():

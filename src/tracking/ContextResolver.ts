@@ -1,6 +1,12 @@
 import * as vscode from "vscode";
 
-import { ActivityContext } from "../types/ActivityContext";
+import {
+  ActivityContext,
+} from "../types/ActivityContext";
+
+import {
+  normalizeLanguageId,
+} from "./LanguageNormalizer";
 
 export class ContextResolver {
   public resolve(): ActivityContext {
@@ -24,7 +30,8 @@ export class ContextResolver {
       vscode.workspace.name;
 
     const workspaceUri =
-      vscode.workspace.workspaceFile?.toString() ??
+      vscode.workspace.workspaceFile
+        ?.toString() ??
       workspaceFolder?.uri.toString();
 
     const projectName =
@@ -36,7 +43,8 @@ export class ContextResolver {
       fileUri?.scheme === "vscode-remote";
 
     const fileName =
-      isTrackableFile && fileUri
+      isTrackableFile &&
+      fileUri
         ? this.getFileName(
             fileUri.path,
           )
@@ -46,14 +54,17 @@ export class ContextResolver {
       isTrackableFile &&
       document &&
       workspaceFolder
-        ? vscode.workspace.asRelativePath(
-            document.uri,
-            false,
-          )
+        ? vscode.workspace
+            .asRelativePath(
+              document.uri,
+              false,
+            )
         : fileName;
 
     const languageId =
-      document?.languageId;
+      normalizeLanguageId(
+        document?.languageId,
+      );
 
     return {
       workspaceName,
@@ -72,7 +83,8 @@ export class ContextResolver {
   }
 
   private getFileName(
-    filePath: string,
+    filePath:
+      string,
   ): string | undefined {
     const parts =
       filePath.split("/");
