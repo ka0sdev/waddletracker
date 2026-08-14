@@ -8,7 +8,9 @@ import { SessionHistoryService } from "./sessions/SessionHistoryService";
 import { StorageBootstrapService } from "./storage/StorageBootstrapService";
 
 import { StatisticsService } from "./statistics/StatisticsService";
+import { AutoSyncService } from "./sync/AutoSyncService";
 import { HttpSyncProvider } from "./sync/HttpSyncProvider";
+import { PendingSyncStore } from "./sync/PendingSyncStore";
 import { SyncConfigurationService } from "./sync/SyncConfigurationService";
 import { SyncService } from "./sync/SyncService";
 
@@ -29,6 +31,9 @@ import {
 
 let activityTracker:
   ActivityTracker | undefined;
+
+let autoSyncService:
+  AutoSyncService | undefined;
 
 export async function activate(
   context:
@@ -114,6 +119,29 @@ export async function activate(
   const syncConfigurationService =
     new SyncConfigurationService(
       context,
+    );
+
+  const pendingSyncStore =
+    new PendingSyncStore(
+      context.globalStorageUri.fsPath,
+    );
+
+  autoSyncService =
+    new AutoSyncService(
+      syncConfigurationService,
+      pendingSyncStore,
+      async () => {
+        if (
+          !activityTracker
+        ) {
+          throw new Error(
+            "WaddleTracker is not active.",
+          );
+        }
+
+        return activityTracker
+          .createStateSnapshot();
+      },
     );
 
 
@@ -653,108 +681,95 @@ export async function activate(
       "waddletracker.syncNow",
       async () => {
         if (
-          !activityTracker
+          !activityTracker ||
+          !autoSyncService
         ) {
           return;
         }
 
-        try {
-          const configuration =
-            await syncConfigurationService
-              .getConfiguration();
+        const configuration =
+          await syncConfigurationService
+            .getConfiguration();
 
-          if (
-            !configuration.enabled
-          ) {
-            const action =
-              await vscode.window
-                .showInformationMessage(
-                  "WaddleTracker sync is disabled.",
-                  "Open Settings",
-                );
-
-            if (
-              action ===
-              "Open Settings"
-            ) {
-              await vscode.commands
-                .executeCommand(
-                  "workbench.action.openSettings",
-                  "@ext:ka0sdev.waddletracker sync",
-                );
-            }
-
-            return;
-          }
-
-          if (
-            configuration.endpoint
-              .length ===
-            0
-          ) {
+        if (
+          !configuration.enabled
+        ) {
+          const action =
             await vscode.window
-              .showWarningMessage(
-                "WaddleTracker sync is enabled, but no server endpoint is configured.",
+              .showInformationMessage(
+                "WaddleTracker sync is disabled.",
+                "Open Settings",
               );
 
-            return;
+          if (
+            action ===
+            "Open Settings"
+          ) {
+            await vscode.commands
+              .executeCommand(
+                "workbench.action.openSettings",
+                "@ext:ka0sdev.waddletracker sync",
+              );
           }
 
-          const provider =
-            new HttpSyncProvider({
-              endpoint:
-                configuration.endpoint,
+          return;
+        }
 
-              token:
-                configuration.token,
-            });
-
-          const syncService =
-            new SyncService(
-              provider,
+        if (
+          configuration.endpoint
+            .length ===
+          0
+        ) {
+          await vscode.window
+            .showWarningMessage(
+              "WaddleTracker sync is enabled, but no server endpoint is configured.",
             );
 
-          const state =
-            await activityTracker
-              .createStateSnapshot();
+          return;
+        }
 
-          const result =
-            await syncService
-              .pushState(
-                configuration.source,
-                state,
-              );
+        const result =
+          await autoSyncService
+            .runOnce();
 
-          if (
-            !result.accepted
-          ) {
-            await vscode.window
-              .showWarningMessage(
-                "The WaddleTracker server received the snapshot but did not accept it.",
-              );
-
-            return;
-          }
-
+        if (
+          result.synchronized
+        ) {
           await vscode.window
             .showInformationMessage(
-              `WaddleTracker synchronized successfully at ${new Date(
-                result.receivedAt,
-              ).toLocaleTimeString()}.`,
+              "WaddleTracker synchronized successfully.",
             );
-        } catch (
-          error
-        ) {
-          const message =
-            error instanceof Error
-              ? error.message
-              : "Unknown synchronization error.";
 
-          await vscode.window
-            .showErrorMessage(
-              `WaddleTracker synchronization failed: ${message}`,
-            );
+          return;
         }
+
+        if (
+          result.pending
+        ) {
+          await vscode.window
+            .showWarningMessage(
+              "WaddleTracker could not reach the configured server. The newest snapshot is cached locally and will be retried automatically.",
+            );
+
+          return;
+        }
+
+        if (
+          result.reason ===
+          "already_running"
+        ) {
+          await vscode.window
+            .showInformationMessage(
+              "WaddleTracker synchronization is already in progress.",
+            );
+
+          return;
+        }
+
+        await vscode.window
+          .showWarningMessage(
+            "WaddleTracker synchronization did not run.",
+          );
       },
     );
 
@@ -859,6 +874,10 @@ export async function activate(
           await syncConfigurationService
             .getConfiguration();
 
+        const pendingSync =
+          await pendingSyncStore
+            .load();
+
         const details = [
           `Enabled: ${configuration.enabled ? "Yes" : "No"}`,
           `Endpoint: ${configuration.endpoint || "Not configured"}`,
@@ -866,6 +885,9 @@ export async function activate(
           `Source ID: ${configuration.source.id}`,
           `Platform: ${configuration.source.platform}`,
           `Token: ${configuration.token ? "Configured" : "Not configured"}`,
+          `Automatic Sync: ${configuration.autoSync ? "Yes" : "No"}`,
+          `Interval: ${configuration.intervalMinutes} minute${configuration.intervalMinutes === 1 ? "" : "s"}`,
+          `Pending Sync: ${pendingSync ? "Yes" : "No"}`,
         ];
 
         if (
@@ -1070,6 +1092,29 @@ export async function activate(
       },
     );
 
+  const syncConfigurationChangeRegistration =
+    vscode.workspace
+      .onDidChangeConfiguration(
+        async (
+          event,
+        ) => {
+          if (
+            !event.affectsConfiguration(
+              "waddleTracker.sync",
+            )
+          ) {
+            return;
+          }
+
+          if (
+            autoSyncService
+          ) {
+            await autoSyncService
+              .restart();
+          }
+        },
+      );
+
   context.subscriptions.push(
     activityTracker,
 
@@ -1105,9 +1150,20 @@ export async function activate(
     exportStatisticsCommand,
     importStatisticsCommand,
     resetStatisticsCommand,
+    syncConfigurationChangeRegistration,
+    {
+      dispose:
+        () => {
+          void autoSyncService
+            ?.dispose();
+        },
+    },
   );
 
   activityTracker.start();
+
+  await autoSyncService
+    .initialize();
 
   console.log(
     `WaddleTracker activated using ${storageResult.provider} storage.`,
@@ -1116,6 +1172,16 @@ export async function activate(
 
 export async function deactivate():
   Promise<void> {
+  if (
+    autoSyncService
+  ) {
+    await autoSyncService
+      .dispose();
+
+    autoSyncService =
+      undefined;
+  }
+
   if (
     !activityTracker
   ) {
