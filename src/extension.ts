@@ -13,6 +13,7 @@ import { ActivityTracker } from "./tracking/ActivityTracker";
 import { ContextResolver } from "./tracking/ContextResolver";
 import { TrackingFilter } from "./tracking/TrackingFilter";
 
+import { CodingActivityPanel } from "./ui/CodingActivityPanel";
 import { CurrentActivityProvider } from "./ui/CurrentActivityProvider";
 import { SessionHistoryTreeProvider } from "./ui/SessionHistoryTreeProvider";
 import { StatisticsDashboardProvider } from "./ui/StatisticsDashboardProvider";
@@ -117,6 +118,12 @@ export async function activate(
 
   const dashboardProvider =
     new StatisticsDashboardProvider(
+      activityTracker,
+      statisticsService,
+    );
+
+  const codingActivityPanel =
+    new CodingActivityPanel(
       activityTracker,
       statisticsService,
     );
@@ -603,6 +610,14 @@ export async function activate(
       },
     );
 
+  const openCodingActivityCommand =
+    vscode.commands.registerCommand(
+      "waddletracker.openCodingActivity",
+      () => {
+        codingActivityPanel.show();
+      },
+    );
+
   const exportStatisticsCommand =
     vscode.commands.registerCommand(
       "waddletracker.exportStatistics",
@@ -793,6 +808,8 @@ export async function activate(
     dashboardProvider,
     dashboardRegistration,
 
+    codingActivityPanel,
+
     showStatusCommand,
     openSettingsCommand,
     refreshStatisticsCommand,
@@ -804,6 +821,7 @@ export async function activate(
     includeExplorerFileCommand,
     excludeExplorerDirectoryCommand,
     includeExplorerDirectoryCommand,
+    openCodingActivityCommand,
     exportStatisticsCommand,
     importStatisticsCommand,
     resetStatisticsCommand,
