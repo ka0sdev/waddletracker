@@ -53,6 +53,10 @@
         "title": "WaddleTracker: Export Statistics"
       },
       {
+        "command": "waddletracker.importStatistics",
+        "title": "WaddleTracker: Import Statistics"
+      },
+      {
         "command": "waddletracker.resetStatistics",
         "title": "WaddleTracker: Reset All Statistics"
       },
