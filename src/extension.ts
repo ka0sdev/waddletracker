@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 
 import { ExportService } from "./data/ExportService";
+import { ImportService } from "./data/ImportService";
 
 import { SessionHistoryService } from "./sessions/SessionHistoryService";
 
@@ -73,6 +74,9 @@ export async function activate(
           .createStateSnapshot();
       },
     );
+
+  const importService =
+    new ImportService();
 
   const statusBar =
     new StatusBarController(
@@ -561,7 +565,6 @@ export async function activate(
             resource.fsPath,
           );
 
-        
         const probePath =
           `${directoryPath}/__waddletracker_probe__`;
 
@@ -628,6 +631,102 @@ export async function activate(
           await vscode.window
             .showErrorMessage(
               `WaddleTracker could not export statistics: ${message}`,
+            );
+        }
+      },
+    );
+
+  const importStatisticsCommand =
+    vscode.commands.registerCommand(
+      "waddletracker.importStatistics",
+      async () => {
+        if (
+          !activityTracker
+        ) {
+          return;
+        }
+
+        try {
+          const selection =
+            await importService
+              .selectImport();
+
+          if (
+            !selection
+          ) {
+            return;
+          }
+
+          const summary =
+            selection.summary;
+
+          const confirmation =
+            await vscode.window
+              .showWarningMessage(
+                "Import WaddleTracker statistics?",
+                {
+                  modal:
+                    true,
+
+                  detail:
+                    [
+                      `Exported: ${formatImportDate(
+                        summary.exportedAt,
+                      )}`,
+
+                      `Active days: ${summary.activeDays}`,
+
+                      `Sessions: ${summary.sessions}`,
+
+                      `Tracked time: ${formatDurationClock(
+                        summary.activeMilliseconds,
+                      )}`,
+
+                      "",
+
+                      "This will replace all currently stored statistics and coding-session history.",
+
+                      "This action cannot be undone unless you have exported the current statistics first.",
+                    ].join(
+                      "\n",
+                    ),
+                },
+                "Import Statistics",
+              );
+
+          if (
+            confirmation !==
+            "Import Statistics"
+          ) {
+            return;
+          }
+
+          await activityTracker
+            .replaceState(
+              selection.state,
+            );
+
+          await refreshAllViews(
+            currentActivityProvider,
+            sessionHistoryProvider,
+            dashboardProvider,
+          );
+
+          await vscode.window
+            .showInformationMessage(
+              "WaddleTracker statistics imported successfully.",
+            );
+        } catch (
+          error
+        ) {
+          const message =
+            error instanceof Error
+              ? error.message
+              : "Unknown import error.";
+
+          await vscode.window
+            .showErrorMessage(
+              `WaddleTracker could not import statistics: ${message}`,
             );
         }
       },
@@ -706,6 +805,7 @@ export async function activate(
     excludeExplorerDirectoryCommand,
     includeExplorerDirectoryCommand,
     exportStatisticsCommand,
+    importStatisticsCommand,
     resetStatisticsCommand,
   );
 
@@ -855,6 +955,33 @@ async function removeTrackingExclusion(
   );
 
   return true;
+}
+
+function formatImportDate(
+  timestamp:
+    string,
+): string {
+  return new Date(
+    timestamp,
+  ).toLocaleString(
+    undefined,
+    {
+      year:
+        "numeric",
+
+      month:
+        "short",
+
+      day:
+        "numeric",
+
+      hour:
+        "2-digit",
+
+      minute:
+        "2-digit",
+    },
+  );
 }
 
 function normalizeResourcePath(
