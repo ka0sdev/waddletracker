@@ -31,6 +31,12 @@ export interface SyncConfiguration {
   token:
     string |
     undefined;
+
+  autoSync:
+    boolean;
+
+  intervalMinutes:
+    number;
 }
 
 export class SyncConfigurationService {
@@ -64,6 +70,31 @@ export class SyncConfigurationService {
         "sync.sourceName",
         "",
       ).trim();
+
+    const autoSync =
+      configuration.get<boolean>(
+        "sync.autoSync",
+        true,
+      );
+
+    const configuredInterval =
+      configuration.get<number>(
+        "sync.intervalMinutes",
+        5,
+      );
+
+    const intervalMinutes =
+      Math.min(
+        1440,
+        Math.max(
+          1,
+          Number.isFinite(
+            configuredInterval,
+          )
+            ? configuredInterval
+            : 5,
+        ),
+      );
 
     const sourceId =
       await this.getOrCreateSourceId();
@@ -102,6 +133,10 @@ export class SyncConfigurationService {
       },
 
       token,
+
+      autoSync,
+
+      intervalMinutes,
     };
   }
 

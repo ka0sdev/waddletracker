@@ -5,6 +5,7 @@ import {
 import {
   SyncProvider,
   SyncPushResult,
+  SyncSnapshot,
   SyncSource,
 } from "./SyncTypes";
 
@@ -35,6 +36,15 @@ export class SyncService {
           state,
         );
 
+    return this.pushSnapshot(
+      snapshot,
+    );
+  }
+
+  public async pushSnapshot(
+    snapshot:
+      SyncSnapshot,
+  ): Promise<SyncPushResult> {
     const result =
       await this.provider
         .pushSnapshot(
