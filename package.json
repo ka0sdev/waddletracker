@@ -88,6 +88,23 @@
         "command": "waddletracker.openCodingActivity",
         "title": "WaddleTracker: Open Coding Activity",
         "icon": "$(graph)"
+      },
+      {
+        "command": "waddletracker.syncNow",
+        "title": "WaddleTracker: Sync Now",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "waddletracker.configureSyncToken",
+        "title": "WaddleTracker: Configure Sync Token"
+      },
+      {
+        "command": "waddletracker.clearSyncToken",
+        "title": "WaddleTracker: Clear Sync Token"
+      },
+      {
+        "command": "waddletracker.showSyncStatus",
+        "title": "WaddleTracker: Show Sync Status"
       }
     ],
     "viewsContainers": {
@@ -263,6 +280,24 @@
           "default": [],
           "markdownDescription": "VS Code language identifiers WaddleTracker should not track. Wildcards are supported, for example `plaintext` or `*react`.",
           "order": 60
+        },
+        "waddleTracker.sync.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Enable optional synchronization with a self-hosted WaddleTracker server. Sync is disabled by default.",
+          "order": 70
+        },
+        "waddleTracker.sync.endpoint": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Base URL of the self-hosted WaddleTracker server, for example `https://waddle.example.com`. Snapshots are sent to `/api/v1/sync/snapshots`.",
+          "order": 80
+        },
+        "waddleTracker.sync.sourceName": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Friendly name for this WaddleTracker source/device. Leave empty to use the machine hostname.",
+          "order": 90
         }
       }
     },
