@@ -6,7 +6,10 @@ const config = {
   entryPoints: ["src/extension.ts"],
   bundle: true,
   outfile: "dist/extension.js",
-  external: ["vscode"],
+  external: [
+    "vscode",
+    "better-sqlite3",
+  ],
   format: "cjs",
   platform: "node",
   target: "node20",
