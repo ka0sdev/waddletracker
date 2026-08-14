@@ -94,6 +94,10 @@ async function main() {
         ".cjs",
     },
 
+    external: [
+      "better-sqlite3",
+    ],
+
     sourcemap:
       "inline",
 
