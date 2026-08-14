@@ -5,7 +5,7 @@ import { ImportService } from "./data/ImportService";
 
 import { SessionHistoryService } from "./sessions/SessionHistoryService";
 
-import { JsonStorageProvider } from "./storage/JsonStorageProvider";
+import { StorageBootstrapService } from "./storage/StorageBootstrapService";
 
 import { StatisticsService } from "./statistics/StatisticsService";
 
@@ -30,15 +30,44 @@ export async function activate(
   context:
     vscode.ExtensionContext,
 ): Promise<void> {
-  const storage =
-    new JsonStorageProvider(
+  const storageBootstrap =
+    new StorageBootstrapService(
       context.globalStorageUri.fsPath,
     );
 
-  await storage.initialize();
+  const storageResult =
+    await storageBootstrap
+      .initialize();
+
+  const storage =
+    storageResult.storage;
 
   const state =
-    await storage.loadState();
+    storageResult.state;
+
+  if (
+    storageResult.provider ===
+      "sqlite"
+  ) {
+    if (
+      storageResult.migration
+        ?.reason ===
+      "migrated"
+    ) {
+      console.log(
+        "WaddleTracker migrated local statistics from JSON to SQLite. The original JSON file and a backup were retained.",
+      );
+    }
+  } else {
+    console.warn(
+      `WaddleTracker is using JSON storage as a fallback. ${storageResult.fallbackError ?? ""}`.trim(),
+    );
+
+    await vscode.window
+      .showWarningMessage(
+        "WaddleTracker could not use SQLite and has fallen back to JSON storage. Your existing statistics remain available.",
+      );
+  }
 
   const contextResolver =
     new ContextResolver();
@@ -830,7 +859,7 @@ export async function activate(
   activityTracker.start();
 
   console.log(
-    "WaddleTracker activated.",
+    `WaddleTracker activated using ${storageResult.provider} storage.`,
   );
 }
 
