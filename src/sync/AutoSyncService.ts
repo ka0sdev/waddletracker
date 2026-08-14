@@ -21,6 +21,10 @@ import {
 } from "./SyncService";
 
 import {
+  SyncMetadataStore,
+} from "./SyncMetadataStore";
+
+import {
   SyncSnapshotService,
 } from "./SyncSnapshotService";
 
@@ -96,6 +100,9 @@ export class AutoSyncService {
     private readonly getTrackerState:
       () => Promise<TrackerState>,
 
+    private readonly metadataStore:
+      SyncMetadataStore,
+
     private readonly snapshotService =
       new SyncSnapshotService(),
   ) {}
@@ -130,6 +137,9 @@ export class AutoSyncService {
   public async initialize():
     Promise<void> {
     await this.pendingStore
+      .initialize();
+
+    await this.metadataStore
       .initialize();
 
     await this.restart();
@@ -229,6 +239,12 @@ export class AutoSyncService {
     } catch (
       error
     ) {
+      await this.metadataStore
+        .recordFailure(
+          "local",
+          error,
+        );
+
       this.setState(
         "failed",
       );
@@ -338,6 +354,9 @@ export class AutoSyncService {
     );
 
     try {
+      await this.metadataStore
+        .recordAttempt();
+
       const state =
         await this.getTrackerState();
 
@@ -386,6 +405,11 @@ export class AutoSyncService {
         await this.pendingStore
           .clear();
 
+        await this.metadataStore
+          .recordSuccess(
+            result.receivedAt,
+          );
+
         this.setState(
           "synced",
         );
@@ -418,6 +442,12 @@ export class AutoSyncService {
             error.kind ===
               "configuration"
           ) {
+            await this.metadataStore
+              .recordFailure(
+                "configuration",
+                error,
+              );
+
             this.stopTimer();
 
             this.setState(
@@ -447,6 +477,12 @@ export class AutoSyncService {
             error.kind ===
               "protocol"
           ) {
+            await this.metadataStore
+              .recordFailure(
+                "protocol",
+                error,
+              );
+
             this.stopTimer();
 
             this.setState(
@@ -473,6 +509,12 @@ export class AutoSyncService {
           }
         }
 
+        await this.metadataStore
+          .recordFailure(
+            "transient",
+            error,
+          );
+
         this.setState(
           "pending",
         );
@@ -498,6 +540,12 @@ export class AutoSyncService {
     } catch (
       error
     ) {
+      await this.metadataStore
+        .recordFailure(
+          "local",
+          error,
+        );
+
       this.setState(
         "failed",
       );

@@ -12,6 +12,7 @@ import { AutoSyncService } from "./sync/AutoSyncService";
 import { HttpSyncProvider } from "./sync/HttpSyncProvider";
 import { PendingSyncStore } from "./sync/PendingSyncStore";
 import { SyncConfigurationService } from "./sync/SyncConfigurationService";
+import { SyncMetadataStore } from "./sync/SyncMetadataStore";
 import { SyncService } from "./sync/SyncService";
 
 
@@ -127,6 +128,11 @@ export async function activate(
       context.globalStorageUri.fsPath,
     );
 
+  const syncMetadataStore =
+    new SyncMetadataStore(
+      context.globalStorageUri.fsPath,
+    );
+
   autoSyncService =
     new AutoSyncService(
       syncConfigurationService,
@@ -143,6 +149,7 @@ export async function activate(
         return activityTracker
           .createStateSnapshot();
       },
+      syncMetadataStore,
     );
 
 
@@ -911,6 +918,10 @@ export async function activate(
           await pendingSyncStore
             .load();
 
+        const syncMetadata =
+          await syncMetadataStore
+            .load();
+
         const details = [
           `Enabled: ${configuration.enabled ? "Yes" : "No"}`,
           `Endpoint: ${configuration.endpoint || "Not configured"}`,
@@ -921,7 +932,33 @@ export async function activate(
           `Automatic Sync: ${configuration.autoSync ? "Yes" : "No"}`,
           `Interval: ${configuration.intervalMinutes} minute${configuration.intervalMinutes === 1 ? "" : "s"}`,
           `Pending Sync: ${pendingSync ? "Yes" : "No"}`,
+          `Last Attempt: ${formatSyncTimestamp(
+            syncMetadata.lastAttemptAt,
+          )}`,
+          `Last Success: ${formatSyncTimestamp(
+            syncMetadata.lastSuccessAt,
+          )}`,
         ];
+
+        if (
+          pendingSync
+        ) {
+          details.push(
+            `Pending Since: ${formatSyncTimestamp(
+              pendingSync.queuedAt,
+            )}`,
+            `Pending Attempts: ${pendingSync.attempts}`,
+          );
+        }
+
+        if (
+          syncMetadata.lastError
+        ) {
+          details.push(
+            `Last Error Type: ${syncMetadata.lastErrorKind ?? "unknown"}`,
+            `Last Error: ${syncMetadata.lastError}`,
+          );
+        }
 
         if (
           configuration.source
@@ -1419,4 +1456,32 @@ async function refreshAllViews(
 
   await dashboardProvider
     .refresh();
+}
+
+
+function formatSyncTimestamp(
+  timestamp:
+    string | undefined,
+): string {
+  if (
+    !timestamp
+  ) {
+    return "Never";
+  }
+
+  const date =
+    new Date(
+      timestamp,
+    );
+
+  if (
+    Number.isNaN(
+      date.getTime(),
+    )
+  ) {
+    return "Unknown";
+  }
+
+  return date
+    .toLocaleString();
 }
