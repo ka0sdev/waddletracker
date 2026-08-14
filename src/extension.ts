@@ -8,6 +8,10 @@ import { SessionHistoryService } from "./sessions/SessionHistoryService";
 import { StorageBootstrapService } from "./storage/StorageBootstrapService";
 
 import { StatisticsService } from "./statistics/StatisticsService";
+import { HttpSyncProvider } from "./sync/HttpSyncProvider";
+import { SyncConfigurationService } from "./sync/SyncConfigurationService";
+import { SyncService } from "./sync/SyncService";
+
 
 import { ActivityTracker } from "./tracking/ActivityTracker";
 import { ContextResolver } from "./tracking/ContextResolver";
@@ -107,6 +111,11 @@ export async function activate(
 
   const importService =
     new ImportService();
+  const syncConfigurationService =
+    new SyncConfigurationService(
+      context,
+    );
+
 
   const statusBar =
     new StatusBarController(
@@ -639,6 +648,244 @@ export async function activate(
       },
     );
 
+  const syncNowCommand =
+    vscode.commands.registerCommand(
+      "waddletracker.syncNow",
+      async () => {
+        if (
+          !activityTracker
+        ) {
+          return;
+        }
+
+        try {
+          const configuration =
+            await syncConfigurationService
+              .getConfiguration();
+
+          if (
+            !configuration.enabled
+          ) {
+            const action =
+              await vscode.window
+                .showInformationMessage(
+                  "WaddleTracker sync is disabled.",
+                  "Open Settings",
+                );
+
+            if (
+              action ===
+              "Open Settings"
+            ) {
+              await vscode.commands
+                .executeCommand(
+                  "workbench.action.openSettings",
+                  "@ext:ka0sdev.waddletracker sync",
+                );
+            }
+
+            return;
+          }
+
+          if (
+            configuration.endpoint
+              .length ===
+            0
+          ) {
+            await vscode.window
+              .showWarningMessage(
+                "WaddleTracker sync is enabled, but no server endpoint is configured.",
+              );
+
+            return;
+          }
+
+          const provider =
+            new HttpSyncProvider({
+              endpoint:
+                configuration.endpoint,
+
+              token:
+                configuration.token,
+            });
+
+          const syncService =
+            new SyncService(
+              provider,
+            );
+
+          const state =
+            await activityTracker
+              .createStateSnapshot();
+
+          const result =
+            await syncService
+              .pushState(
+                configuration.source,
+                state,
+              );
+
+          if (
+            !result.accepted
+          ) {
+            await vscode.window
+              .showWarningMessage(
+                "The WaddleTracker server received the snapshot but did not accept it.",
+              );
+
+            return;
+          }
+
+          await vscode.window
+            .showInformationMessage(
+              `WaddleTracker synchronized successfully at ${new Date(
+                result.receivedAt,
+              ).toLocaleTimeString()}.`,
+            );
+        } catch (
+          error
+        ) {
+          const message =
+            error instanceof Error
+              ? error.message
+              : "Unknown synchronization error.";
+
+          await vscode.window
+            .showErrorMessage(
+              `WaddleTracker synchronization failed: ${message}`,
+            );
+        }
+      },
+    );
+
+  const configureSyncTokenCommand =
+    vscode.commands.registerCommand(
+      "waddletracker.configureSyncToken",
+      async () => {
+        const token =
+          await vscode.window
+            .showInputBox({
+              title:
+                "Configure WaddleTracker Sync Token",
+
+              prompt:
+                "Enter the bearer token for your self-hosted WaddleTracker server.",
+
+              password:
+                true,
+
+              ignoreFocusOut:
+                true,
+
+              validateInput:
+                (value) =>
+                  value.trim().length >
+                  0
+                    ? undefined
+                    : "The token cannot be empty.",
+            });
+
+        if (
+          token ===
+          undefined
+        ) {
+          return;
+        }
+
+        await syncConfigurationService
+          .setToken(
+            token,
+          );
+
+        await vscode.window
+          .showInformationMessage(
+            "WaddleTracker sync token stored securely in VS Code SecretStorage.",
+          );
+      },
+    );
+
+  const clearSyncTokenCommand =
+    vscode.commands.registerCommand(
+      "waddletracker.clearSyncToken",
+      async () => {
+        const hasToken =
+          await syncConfigurationService
+            .hasToken();
+
+        if (
+          !hasToken
+        ) {
+          await vscode.window
+            .showInformationMessage(
+              "WaddleTracker does not currently have a sync token stored.",
+            );
+
+          return;
+        }
+
+        const confirmation =
+          await vscode.window
+            .showWarningMessage(
+              "Clear the stored WaddleTracker sync token?",
+              {
+                modal:
+                  true,
+              },
+              "Clear Token",
+            );
+
+        if (
+          confirmation !==
+          "Clear Token"
+        ) {
+          return;
+        }
+
+        await syncConfigurationService
+          .clearToken();
+
+        await vscode.window
+          .showInformationMessage(
+            "WaddleTracker sync token cleared.",
+          );
+      },
+    );
+
+  const showSyncStatusCommand =
+    vscode.commands.registerCommand(
+      "waddletracker.showSyncStatus",
+      async () => {
+        const configuration =
+          await syncConfigurationService
+            .getConfiguration();
+
+        const details = [
+          `Enabled: ${configuration.enabled ? "Yes" : "No"}`,
+          `Endpoint: ${configuration.endpoint || "Not configured"}`,
+          `Source: ${configuration.source.name}`,
+          `Source ID: ${configuration.source.id}`,
+          `Platform: ${configuration.source.platform}`,
+          `Token: ${configuration.token ? "Configured" : "Not configured"}`,
+        ];
+
+        if (
+          configuration.source
+            .remoteName
+        ) {
+          details.push(
+            `Remote: ${configuration.source.remoteName}`,
+          );
+        }
+
+        await vscode.window
+          .showInformationMessage(
+            details.join(
+              " • ",
+            ),
+          );
+      },
+    );
+
   const openCodingActivityCommand =
     vscode.commands.registerCommand(
       "waddletracker.openCodingActivity",
@@ -850,6 +1097,10 @@ export async function activate(
     includeExplorerFileCommand,
     excludeExplorerDirectoryCommand,
     includeExplorerDirectoryCommand,
+    syncNowCommand,
+    configureSyncTokenCommand,
+    clearSyncTokenCommand,
+    showSyncStatusCommand,
     openCodingActivityCommand,
     exportStatisticsCommand,
     importStatisticsCommand,
