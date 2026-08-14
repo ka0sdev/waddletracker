@@ -298,6 +298,20 @@
           "default": "",
           "markdownDescription": "Friendly name for this WaddleTracker source/device. Leave empty to use the machine hostname.",
           "order": 90
+        },
+        "waddleTracker.sync.autoSync": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Automatically synchronize the latest local activity snapshot when sync is enabled. Failed remote pushes remain cached locally and are retried later.",
+          "order": 100
+        },
+        "waddleTracker.sync.intervalMinutes": {
+          "type": "number",
+          "default": 5,
+          "minimum": 1,
+          "maximum": 1440,
+          "markdownDescription": "Number of minutes between automatic synchronization attempts. WaddleTracker continues tracking locally when the remote server is unavailable.",
+          "order": 110
         }
       }
     },
