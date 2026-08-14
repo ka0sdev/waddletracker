@@ -276,7 +276,9 @@
   "scripts": {
     "compile": "node esbuild.js",
     "watch": "node esbuild.js --watch",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "test": "node scripts/test.js",
+    "verify": "npm run check && npm run test && npm run compile"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
