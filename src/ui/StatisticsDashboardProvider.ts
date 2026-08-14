@@ -13,11 +13,9 @@ import { ActivityTracker } from "../tracking/ActivityTracker";
 const DASHBOARD_REFRESH_INTERVAL_MS =
   30_000;
 
-const HEATMAP_DAY_COUNT =
-  365;
-
 interface DashboardData {
-  today: HistoricalStatistics;
+  today:
+    HistoricalStatistics;
 
   sevenDays:
     HistoricalStatistics;
@@ -33,11 +31,17 @@ interface DashboardData {
 
   heatmap:
     DailyActivityPoint[];
+
+  heatmapLabel:
+    string;
 }
 
 interface WebviewMessage {
-  type?: string;
-  path?: string;
+  type?:
+    string;
+
+  path?:
+    string;
 }
 
 export class StatisticsDashboardProvider
@@ -87,7 +91,8 @@ export class StatisticsDashboardProvider
       webviewView;
 
     webviewView.webview.options = {
-      enableScripts: true,
+      enableScripts:
+        true,
     };
 
     webviewView.webview.html =
@@ -129,6 +134,14 @@ export class StatisticsDashboardProvider
                 message.path,
               );
             }
+
+            break;
+
+          case "openCodingActivity":
+            await vscode.commands
+              .executeCommand(
+                "waddletracker.openCodingActivity",
+              );
 
             break;
         }
@@ -178,6 +191,12 @@ export class StatisticsDashboardProvider
     const history =
       this.tracker.getDailyHistory();
 
+    const now =
+      new Date();
+
+    const currentMonthDayCount =
+      now.getDate();
+
     const data:
       DashboardData = {
       today:
@@ -218,8 +237,20 @@ export class StatisticsDashboardProvider
         this.statisticsService
           .getCalendarActivity(
             history,
-            HEATMAP_DAY_COUNT,
+            currentMonthDayCount,
           ),
+
+      heatmapLabel:
+        now.toLocaleDateString(
+          undefined,
+          {
+            month:
+              "long",
+
+            year:
+              "numeric",
+          },
+        ),
     };
 
     await this.view.webview
@@ -346,10 +377,16 @@ export class StatisticsDashboardProvider
         18px;
     }
 
-    .range-selector {
+    .range-selector,
+    .breakdown-tabs {
       display:
         grid;
 
+      gap:
+        4px;
+    }
+
+    .range-selector {
       grid-template-columns:
         repeat(
           4,
@@ -358,13 +395,22 @@ export class StatisticsDashboardProvider
             1fr
           )
         );
+    }
 
-      gap:
-        4px;
+    .breakdown-tabs {
+      grid-template-columns:
+        repeat(
+          3,
+          minmax(
+            0,
+            1fr
+          )
+        );
     }
 
     .range-button,
-    .breakdown-button {
+    .breakdown-button,
+    .link-button {
       border:
         1px solid
         var(
@@ -374,6 +420,15 @@ export class StatisticsDashboardProvider
 
       border-radius:
         3px;
+
+      cursor:
+        pointer;
+    }
+
+    .range-button,
+    .breakdown-button {
+      padding:
+        5px 4px;
 
       color:
         var(
@@ -385,24 +440,11 @@ export class StatisticsDashboardProvider
           --vscode-button-secondaryBackground
         );
 
-      cursor:
-        pointer;
-
       font-size:
         11px;
 
       white-space:
         nowrap;
-    }
-
-    .range-button {
-      padding:
-        5px 4px;
-    }
-
-    .breakdown-button {
-      padding:
-        5px 8px;
     }
 
     .range-button:hover,
@@ -426,13 +468,6 @@ export class StatisticsDashboardProvider
         );
     }
 
-    /*
-     * Dashboard summary
-     *
-     * All six primary statistics now use the
-     * same contained card treatment as the
-     * Current Activity Webview.
-     */
     .summary-grid {
       display:
         grid;
@@ -451,9 +486,6 @@ export class StatisticsDashboardProvider
     }
 
     .summary-card {
-      position:
-        relative;
-
       display:
         flex;
 
@@ -497,8 +529,6 @@ export class StatisticsDashboardProvider
 
       transition:
         border-color
-          100ms ease,
-        background
           100ms ease;
     }
 
@@ -547,11 +577,6 @@ export class StatisticsDashboardProvider
       min-width:
         0;
 
-      color:
-        var(
-          --vscode-foreground
-        );
-
       font-size:
         16px;
 
@@ -585,9 +610,6 @@ export class StatisticsDashboardProvider
 
       font-size:
         10px;
-
-      line-height:
-        1.2;
 
       overflow:
         hidden;
@@ -656,32 +678,6 @@ export class StatisticsDashboardProvider
         10px;
     }
 
-    .refresh-button {
-      border:
-        0;
-
-      padding:
-        2px 5px;
-
-      color:
-        var(
-          --vscode-descriptionForeground
-        );
-
-      background:
-        transparent;
-
-      cursor:
-        pointer;
-    }
-
-    .refresh-button:hover {
-      color:
-        var(
-          --vscode-foreground
-        );
-    }
-
     .activity-chart-scroll {
       overflow-x:
         auto;
@@ -710,7 +706,7 @@ export class StatisticsDashboardProvider
         118px;
 
       padding:
-        8px 2px 0 2px;
+        8px 2px 0;
 
       border-bottom:
         1px solid
@@ -770,21 +766,11 @@ export class StatisticsDashboardProvider
 
       opacity:
         0.85;
-
-      transition:
-        opacity
-          100ms ease;
     }
 
     .activity-bar.zero {
       opacity:
         0.12;
-    }
-
-    .activity-column:hover
-      .activity-bar {
-      opacity:
-        1;
     }
 
     .activity-date-label {
@@ -807,33 +793,6 @@ export class StatisticsDashboardProvider
 
       white-space:
         nowrap;
-    }
-
-    .activity-empty {
-      padding:
-        14px 0;
-
-      color:
-        var(
-          --vscode-descriptionForeground
-        );
-    }
-
-    .breakdown-tabs {
-      display:
-        grid;
-
-      grid-template-columns:
-        repeat(
-          3,
-          minmax(
-            0,
-            1fr
-          )
-        );
-
-      gap:
-        4px;
     }
 
     .ranking {
@@ -862,17 +821,17 @@ export class StatisticsDashboardProvider
     }
 
     .ranking-item.clickable {
-      cursor:
-        pointer;
-
-      border-radius:
-        3px;
+      margin:
+        -2px;
 
       padding:
         2px;
 
-      margin:
-        -2px;
+      border-radius:
+        3px;
+
+      cursor:
+        pointer;
     }
 
     .ranking-item.clickable:hover {
@@ -999,13 +958,8 @@ export class StatisticsDashboardProvider
         100%;
     }
 
-    .heatmap-cell {
-      width:
-        10px;
-
-      height:
-        10px;
-
+    .heatmap-cell,
+    .legend-cell {
       border-radius:
         2px;
 
@@ -1013,15 +967,17 @@ export class StatisticsDashboardProvider
         var(
           --vscode-charts-blue
         );
+    }
+
+    .heatmap-cell {
+      width:
+        10px;
+
+      height:
+        10px;
 
       cursor:
         default;
-
-      transition:
-        opacity
-          100ms ease,
-        outline-color
-          100ms ease;
     }
 
     .heatmap-cell:hover {
@@ -1035,7 +991,16 @@ export class StatisticsDashboardProvider
         1px;
     }
 
-    .heatmap-cell.level-0 {
+    .heatmap-placeholder {
+      width:
+        10px;
+
+      height:
+        10px;
+    }
+
+    .heatmap-cell.level-0,
+    .legend-cell.level-0 {
       background:
         var(
           --vscode-widget-border
@@ -1045,32 +1010,28 @@ export class StatisticsDashboardProvider
         0.35;
     }
 
-    .heatmap-cell.level-1 {
+    .heatmap-cell.level-1,
+    .legend-cell.level-1 {
       opacity:
         0.25;
     }
 
-    .heatmap-cell.level-2 {
+    .heatmap-cell.level-2,
+    .legend-cell.level-2 {
       opacity:
         0.45;
     }
 
-    .heatmap-cell.level-3 {
+    .heatmap-cell.level-3,
+    .legend-cell.level-3 {
       opacity:
         0.7;
     }
 
-    .heatmap-cell.level-4 {
+    .heatmap-cell.level-4,
+    .legend-cell.level-4 {
       opacity:
         1;
-    }
-
-    .heatmap-placeholder {
-      width:
-        10px;
-
-      height:
-        10px;
     }
 
     .heatmap-footer {
@@ -1085,14 +1046,6 @@ export class StatisticsDashboardProvider
 
       gap:
         8px;
-
-      color:
-        var(
-          --vscode-descriptionForeground
-        );
-
-      font-size:
-        10px;
     }
 
     .heatmap-legend {
@@ -1104,6 +1057,14 @@ export class StatisticsDashboardProvider
 
       gap:
         3px;
+
+      color:
+        var(
+          --vscode-descriptionForeground
+        );
+
+      font-size:
+        10px;
     }
 
     .legend-cell {
@@ -1112,44 +1073,35 @@ export class StatisticsDashboardProvider
 
       height:
         9px;
-
-      border-radius:
-        2px;
-
-      background:
-        var(
-          --vscode-charts-blue
-        );
     }
 
-    .legend-cell.level-0 {
-      background:
+    .link-button {
+      padding:
+        3px 6px;
+
+      color:
         var(
-          --vscode-widget-border
+          --vscode-textLink-foreground
         );
 
-      opacity:
-        0.35;
+      background:
+        transparent;
+
+      border-color:
+        transparent;
+
+      font-size:
+        10px;
     }
 
-    .legend-cell.level-1 {
-      opacity:
-        0.25;
-    }
+    .link-button:hover {
+      color:
+        var(
+          --vscode-textLink-activeForeground
+        );
 
-    .legend-cell.level-2 {
-      opacity:
-        0.45;
-    }
-
-    .legend-cell.level-3 {
-      opacity:
-        0.7;
-    }
-
-    .legend-cell.level-4 {
-      opacity:
-        1;
+      text-decoration:
+        underline;
     }
 
     .empty-state {
@@ -1174,6 +1126,9 @@ export class StatisticsDashboardProvider
 
       padding:
         6px 8px;
+
+      pointer-events:
+        none;
 
       border:
         1px solid
@@ -1203,45 +1158,17 @@ export class StatisticsDashboardProvider
           )
         );
 
-      box-shadow:
-        0 2px 8px
-        var(
-          --vscode-widget-shadow,
-          rgba(
-            0,
-            0,
-            0,
-            0.25
-          )
-        );
-
       font-size:
         11px;
 
       line-height:
         1.4;
 
-      pointer-events:
-        none;
-
       opacity:
         0;
 
       visibility:
         hidden;
-
-      transform:
-        translateY(
-          2px
-        );
-
-      transition:
-        opacity
-          80ms ease,
-        transform
-          80ms ease,
-        visibility
-          80ms ease;
     }
 
     .dashboard-tooltip.visible {
@@ -1250,63 +1177,18 @@ export class StatisticsDashboardProvider
 
       visibility:
         visible;
-
-      transform:
-        translateY(
-          0
-        );
     }
 
     @media (
       max-width:
-        280px
+        240px
     ) {
       body {
         padding:
           10px 8px;
       }
 
-      .dashboard {
-        gap:
-          14px;
-      }
-
       .summary-grid {
-        grid-template-columns:
-          1fr;
-      }
-
-      .range-button,
-      .breakdown-button {
-        font-size:
-          10px;
-      }
-
-      .heatmap-footer {
-        align-items:
-          flex-start;
-
-        flex-direction:
-          column;
-      }
-    }
-
-    @media (
-      max-width:
-        220px
-    ) {
-      .range-selector {
-        grid-template-columns:
-          repeat(
-            2,
-            minmax(
-              0,
-              1fr
-            )
-          );
-      }
-
-      .breakdown-tabs {
         grid-template-columns:
           1fr;
       }
@@ -1315,50 +1197,47 @@ export class StatisticsDashboardProvider
 </head>
 
 <body>
-  <div
+  <main
     class="dashboard"
   >
     <div
       class="range-selector"
+      role="tablist"
       aria-label="Statistics range"
     >
       <button
-        class="range-button active"
+        class="range-button"
         data-range="today"
-        type="button"
       >
         Today
       </button>
 
       <button
         class="range-button"
-        data-range="sevenDays"
-        type="button"
+        data-range="7days"
       >
         7 Days
       </button>
 
       <button
         class="range-button"
-        data-range="thirtyDays"
-        type="button"
+        data-range="30days"
       >
         30 Days
       </button>
 
       <button
         class="range-button"
-        data-range="allTime"
-        type="button"
+        data-range="all"
       >
         All
       </button>
     </div>
 
-    <div
+    <section
       class="summary-grid"
     >
-      <section
+      <article
         class="summary-card"
       >
         <div
@@ -1369,13 +1248,13 @@ export class StatisticsDashboardProvider
 
         <div
           class="summary-value"
-          id="total-time"
+          id="coding-time"
         >
-          —
+          0s
         </div>
-      </section>
+      </article>
 
-      <section
+      <article
         class="summary-card"
       >
         <div
@@ -1388,11 +1267,11 @@ export class StatisticsDashboardProvider
           class="summary-value"
           id="active-days"
         >
-          —
+          0
         </div>
-      </section>
+      </article>
 
-      <section
+      <article
         class="summary-card"
       >
         <div
@@ -1403,13 +1282,13 @@ export class StatisticsDashboardProvider
 
         <div
           class="summary-value"
-          id="average-time"
+          id="daily-average"
         >
-          —
+          0s
         </div>
-      </section>
+      </article>
 
-      <section
+      <article
         class="summary-card"
       >
         <div
@@ -1429,9 +1308,9 @@ export class StatisticsDashboardProvider
           class="summary-detail"
           id="best-day-detail"
         ></div>
-      </section>
+      </article>
 
-      <section
+      <article
         class="summary-card"
       >
         <div
@@ -1444,16 +1323,16 @@ export class StatisticsDashboardProvider
           class="summary-value"
           id="current-streak"
         >
-          —
+          0 days
         </div>
 
         <div
           class="summary-detail"
           id="current-streak-detail"
         ></div>
-      </section>
+      </article>
 
-      <section
+      <article
         class="summary-card"
       >
         <div
@@ -1466,20 +1345,20 @@ export class StatisticsDashboardProvider
           class="summary-value"
           id="longest-streak"
         >
-          —
+          0 days
         </div>
 
         <div
           class="summary-detail"
           id="longest-streak-detail"
         ></div>
-      </section>
-    </div>
+      </article>
+    </section>
 
     <section
       class="section"
     >
-      <div
+      <header
         class="section-header"
       >
         <div>
@@ -1494,17 +1373,7 @@ export class StatisticsDashboardProvider
             id="activity-context"
           ></div>
         </div>
-
-        <button
-          class="refresh-button"
-          id="refresh"
-          type="button"
-          title="Refresh statistics"
-          aria-label="Refresh statistics"
-        >
-          ↻
-        </button>
-      </div>
+      </header>
 
       <div
         class="activity-chart-scroll"
@@ -1512,42 +1381,37 @@ export class StatisticsDashboardProvider
         <div
           class="activity-chart"
           id="activity-chart"
-        >
-          <div
-            class="activity-empty"
-          >
-            Waiting for statistics…
-          </div>
-        </div>
+        ></div>
       </div>
     </section>
 
     <section
       class="section"
     >
-      <div>
-        <h2
-          class="section-title"
-        >
-          Breakdown
-        </h2>
+      <header
+        class="section-header"
+      >
+        <div>
+          <h2
+            class="section-title"
+          >
+            Breakdown
+          </h2>
 
-        <div
-          class="section-context"
-          id="breakdown-context"
-        >
-          Top 5
+          <div
+            class="section-context"
+            id="breakdown-context"
+          ></div>
         </div>
-      </div>
+      </header>
 
       <div
         class="breakdown-tabs"
-        aria-label="Statistics breakdown"
+        role="tablist"
       >
         <button
-          class="breakdown-button active"
+          class="breakdown-button"
           data-breakdown="projects"
-          type="button"
         >
           Projects
         </button>
@@ -1555,7 +1419,6 @@ export class StatisticsDashboardProvider
         <button
           class="breakdown-button"
           data-breakdown="languages"
-          type="button"
         >
           Languages
         </button>
@@ -1563,7 +1426,6 @@ export class StatisticsDashboardProvider
         <button
           class="breakdown-button"
           data-breakdown="files"
-          type="button"
         >
           Files
         </button>
@@ -1571,26 +1433,31 @@ export class StatisticsDashboardProvider
 
       <div
         class="ranking"
-        id="breakdown-ranking"
+        id="ranking"
       ></div>
     </section>
 
     <section
       class="section"
     >
-      <div>
-        <h2
-          class="section-title"
-        >
-          Coding Activity
-        </h2>
+      <header
+        class="section-header"
+      >
+        <div>
+          <h2
+            class="section-title"
+          >
+            Coding Activity
+          </h2>
 
-        <div
-          class="section-context"
-        >
-          Last 365 days
+          <div
+            class="section-context"
+            id="heatmap-context"
+          >
+            Current month
+          </div>
         </div>
-      </div>
+      </header>
 
       <div
         class="heatmap-scroll"
@@ -1602,13 +1469,9 @@ export class StatisticsDashboardProvider
         ></div>
       </div>
 
-      <div
+      <footer
         class="heatmap-footer"
       >
-        <span>
-          Daily coding time
-        </span>
-
         <div
           class="heatmap-legend"
         >
@@ -1640,13 +1503,21 @@ export class StatisticsDashboardProvider
             More
           </span>
         </div>
-      </div>
+
+        <button
+          class="link-button"
+          id="open-full-activity"
+          type="button"
+        >
+          Open Full Activity ↗
+        </button>
+      </footer>
     </section>
-  </div>
+  </main>
 
   <div
     class="dashboard-tooltip"
-    id="dashboard-tooltip"
+    id="tooltip"
     role="tooltip"
   ></div>
 
@@ -1659,33 +1530,34 @@ export class StatisticsDashboardProvider
     const previousState =
       vscode.getState() ?? {};
 
-    let dashboardData =
-      undefined;
+    let currentRange =
+      previousState.range ??
+      "7days";
 
-    let selectedRange =
-      previousState.selectedRange ??
-      "today";
-
-    let selectedBreakdown =
-      previousState.selectedBreakdown ??
+    let currentBreakdown =
+      previousState.breakdown ??
       "projects";
 
-    let heatmapInitialized =
-      false;
+    let statisticsData =
+      undefined;
 
     const rangeButtons =
-      document.querySelectorAll(
-        ".range-button"
+      Array.from(
+        document.querySelectorAll(
+          ".range-button"
+        )
       );
 
     const breakdownButtons =
-      document.querySelectorAll(
-        ".breakdown-button"
+      Array.from(
+        document.querySelectorAll(
+          ".breakdown-button"
+        )
       );
 
-    const totalTime =
+    const codingTime =
       document.getElementById(
-        "total-time"
+        "coding-time"
       );
 
     const activeDays =
@@ -1693,9 +1565,9 @@ export class StatisticsDashboardProvider
         "active-days"
       );
 
-    const averageTime =
+    const dailyAverage =
       document.getElementById(
-        "average-time"
+        "daily-average"
       );
 
     const bestDay =
@@ -1743,9 +1615,14 @@ export class StatisticsDashboardProvider
         "breakdown-context"
       );
 
-    const breakdownRanking =
+    const ranking =
       document.getElementById(
-        "breakdown-ranking"
+        "ranking"
+      );
+
+    const heatmapContext =
+      document.getElementById(
+        "heatmap-context"
       );
 
     const heatmap =
@@ -1753,19 +1630,23 @@ export class StatisticsDashboardProvider
         "heatmap"
       );
 
-    const heatmapScroll =
-      document.getElementById(
-        "heatmap-scroll"
-      );
-
-    const refreshButton =
-      document.getElementById(
-        "refresh"
-      );
-
     const tooltip =
       document.getElementById(
-        "dashboard-tooltip"
+        "tooltip"
+      );
+
+    document
+      .getElementById(
+        "open-full-activity"
+      )
+      .addEventListener(
+        "click",
+        () => {
+          vscode.postMessage({
+            type:
+              "openCodingActivity",
+          });
+        },
       );
 
     for (
@@ -1775,13 +1656,10 @@ export class StatisticsDashboardProvider
       button.addEventListener(
         "click",
         () => {
-          selectedRange =
+          currentRange =
             button.dataset.range;
 
           persistState();
-
-          updateRangeButtons();
-
           render();
         },
       );
@@ -1794,27 +1672,14 @@ export class StatisticsDashboardProvider
       button.addEventListener(
         "click",
         () => {
-          selectedBreakdown =
+          currentBreakdown =
             button.dataset.breakdown;
 
           persistState();
-
-          updateBreakdownButtons();
-
-          renderBreakdown();
+          render();
         },
       );
     }
-
-    refreshButton.addEventListener(
-      "click",
-      () => {
-        vscode.postMessage({
-          type:
-            "refresh",
-        });
-      },
-    );
 
     window.addEventListener(
       "message",
@@ -1829,28 +1694,72 @@ export class StatisticsDashboardProvider
           return;
         }
 
-        dashboardData =
+        statisticsData =
           message.data;
 
         render();
       },
     );
 
-    window.addEventListener(
-      "blur",
-      () => {
-        hideTooltip();
-      },
-    );
-
     function persistState() {
       vscode.setState({
-        selectedRange,
-        selectedBreakdown,
+        range:
+          currentRange,
+
+        breakdown:
+          currentBreakdown,
       });
     }
 
-    function updateRangeButtons() {
+    function render() {
+      if (
+        !statisticsData
+      ) {
+        return;
+      }
+
+      const selected =
+        getSelectedStatistics();
+
+      renderRangeButtons();
+      renderSummary(
+        selected,
+        statisticsData.streaks
+      );
+      renderDailyActivity(
+        selected
+      );
+      renderBreakdown(
+        selected
+      );
+      renderHeatmap(
+        statisticsData.heatmap
+      );
+
+      heatmapContext.textContent =
+        statisticsData.heatmapLabel;
+    }
+
+    function getSelectedStatistics() {
+      switch (
+        currentRange
+      ) {
+        case "today":
+          return statisticsData.today;
+
+        case "30days":
+          return statisticsData.thirtyDays;
+
+        case "all":
+          return statisticsData.allTime;
+
+        case "7days":
+        default:
+          return statisticsData.sevenDays;
+      }
+    }
+
+    function renderRangeButtons() {
       for (
         const button
         of rangeButtons
@@ -1858,12 +1767,10 @@ export class StatisticsDashboardProvider
         button.classList.toggle(
           "active",
           button.dataset.range ===
-            selectedRange,
+            currentRange
         );
       }
-    }
 
-    function updateBreakdownButtons() {
       for (
         const button
         of breakdownButtons
@@ -1871,77 +1778,43 @@ export class StatisticsDashboardProvider
         button.classList.toggle(
           "active",
           button.dataset.breakdown ===
-            selectedBreakdown,
+            currentBreakdown
         );
       }
     }
 
-    function render() {
-      if (
-        !dashboardData
-      ) {
-        return;
-      }
-
-      const statistics =
-        getSelectedStatistics();
-
-      if (
-        !statistics
-      ) {
-        return;
-      }
-
-      updateRangeButtons();
-
-      updateBreakdownButtons();
-
-      totalTime.textContent =
+    function renderSummary(
+      selected,
+      streaks
+    ) {
+      codingTime.textContent =
         formatDuration(
-          statistics.activeMilliseconds,
+          selected.activeMilliseconds
         );
 
       activeDays.textContent =
         String(
-          statistics.activeDays,
+          selected.activeDays
         );
 
-      averageTime.textContent =
+      dailyAverage.textContent =
         formatDuration(
-          statistics.averageActiveMilliseconds,
+          selected.averageActiveMilliseconds
         );
 
       if (
-        statistics.bestDay
+        selected.bestDay
       ) {
         bestDay.textContent =
           formatDuration(
-            statistics
-              .bestDay
-              .activeMilliseconds,
+            selected.bestDay
+              .activeMilliseconds
           );
 
         bestDayDetail.textContent =
-          formatShortDate(
-            statistics.bestDay.date,
+          formatDate(
+            selected.bestDay.date
           );
-
-        attachTooltip(
-          bestDay,
-          [
-            formatFullDate(
-              statistics.bestDay.date,
-            ),
-
-            formatDuration(
-              statistics
-                .bestDay
-                .activeMilliseconds,
-            ),
-          ].join(
-            "\\n",
-          ),
-        );
       } else {
         bestDay.textContent =
           "—";
@@ -1950,482 +1823,249 @@ export class StatisticsDashboardProvider
           "";
       }
 
-      activityContext.textContent =
-        formatRangeContext(
-          statistics,
-        );
-
-      renderStreaks(
-        dashboardData.streaks,
-      );
-
-      renderActivityChart(
-        statistics.daily,
-      );
-
-      renderBreakdown();
-
-      renderHeatmap(
-        dashboardData.heatmap,
-      );
-    }
-
-    function renderStreaks(
-      streaks
-    ) {
-      if (
-        !streaks
-      ) {
-        return;
-      }
-
       currentStreak.textContent =
-        formatDays(
-          streaks.currentDays,
-        );
-
-      longestStreak.textContent =
-        formatDays(
-          streaks.longestDays,
+        formatDayCount(
+          streaks.currentDays
         );
 
       currentStreakDetail.textContent =
-        formatStreakRange(
+        formatDateRange(
           streaks.currentStartDate,
-          streaks.currentEndDate,
+          streaks.currentEndDate
+        );
+
+      longestStreak.textContent =
+        formatDayCount(
+          streaks.longestDays
         );
 
       longestStreakDetail.textContent =
-        formatStreakRange(
+        formatDateRange(
           streaks.longestStartDate,
-          streaks.longestEndDate,
+          streaks.longestEndDate
         );
-
-      attachTooltip(
-        currentStreak,
-        streaks.currentDays > 0
-          ? [
-              "Current streak",
-
-              formatStreakRange(
-                streaks.currentStartDate,
-                streaks.currentEndDate,
-              ),
-            ].join(
-              "\\n",
-            )
-          : "No active coding streak",
-      );
-
-      attachTooltip(
-        longestStreak,
-        streaks.longestDays > 0
-          ? [
-              "Longest streak",
-
-              formatStreakRange(
-                streaks.longestStartDate,
-                streaks.longestEndDate,
-              ),
-            ].join(
-              "\\n",
-            )
-          : "No coding streak recorded",
-      );
     }
 
-    function renderBreakdown() {
-      const statistics =
-        getSelectedStatistics();
-
-      if (
-        !statistics
-      ) {
-        return;
-      }
-
-      let items =
-        [];
-
-      let mode =
-        selectedBreakdown;
-
-      switch (
-        selectedBreakdown
-      ) {
-        case "languages":
-          items =
-            statistics.languages;
-
-          break;
-
-        case "files":
-          items =
-            statistics.files;
-
-          break;
-
-        case "projects":
-        default:
-          items =
-            statistics.projects;
-
-          mode =
-            "projects";
-
-          break;
-      }
-
-      breakdownContext.textContent =
-        items.length > 5
-          ? "Top 5 of " +
-            items.length
-          : items.length > 0
-            ? items.length +
-              (
-                items.length === 1
-                  ? " entry"
-                  : " entries"
-              )
-            : "No activity";
-
-      renderRanking(
-        breakdownRanking,
-        items,
-        mode,
-      );
-    }
-
-    function getSelectedStatistics() {
-      if (
-        !dashboardData
-      ) {
-        return undefined;
-      }
-
-      return dashboardData[
-        selectedRange
-      ];
-    }
-
-    function renderActivityChart(
-      daily
+    function renderDailyActivity(
+      selected
     ) {
       activityChart.replaceChildren();
 
+      const daily =
+        selected.daily ?? [];
+
+      activityContext.textContent =
+        describeRange(
+          selected
+        );
+
       if (
-        !daily ||
         daily.length === 0
       ) {
-        const empty =
-          document.createElement(
-            "div"
-          );
-
-        empty.className =
-          "activity-empty";
-
-        empty.textContent =
-          "No activity recorded for this range.";
-
-        activityChart.appendChild(
-          empty
-        );
+        activityChart.innerHTML =
+          '<div class="empty-state">No activity</div>';
 
         return;
       }
 
-      if (
-        daily.length > 31
-      ) {
-        activityChart.style.minWidth =
-          Math.max(
-            daily.length *
-              8,
-            320,
-          ) +
-          "px";
-      } else {
-        activityChart.style.minWidth =
-          "100%";
-      }
-
-      const maximum =
+      const max =
         Math.max(
           ...daily.map(
-            (day) =>
-              day.activeMilliseconds
+            (point) =>
+              point.activeMilliseconds
           ),
-          1,
+          1
         );
 
-      for (
-        let index = 0;
-        index <
-          daily.length;
-        index += 1
-      ) {
-        const day =
-          daily[index];
+      const minimumWidth =
+        currentRange ===
+        "all"
+          ? Math.max(
+              daily.length * 8,
+              240
+            )
+          : 0;
 
-        const column =
-          document.createElement(
-            "div"
-          );
+      activityChart.style.minWidth =
+        minimumWidth > 0
+          ? minimumWidth + "px"
+          : "100%";
 
-        column.className =
-          "activity-column";
-
-        attachTooltip(
-          column,
-          [
-            formatFullDate(
-              day.date
-            ),
-
-            formatDuration(
-              day.activeMilliseconds
-            ),
-          ].join(
-            "\\n"
-          ),
-        );
-
-        const barArea =
-          document.createElement(
-            "div"
-          );
-
-        barArea.className =
-          "activity-bar-area";
-
-        const bar =
-          document.createElement(
-            "div"
-          );
-
-        bar.className =
-          "activity-bar";
-
-        if (
-          day.activeMilliseconds ===
-          0
-        ) {
-          bar.classList.add(
-            "zero"
-          );
-        }
-
-        const percentage =
-          day.activeMilliseconds >
-          0
-            ? Math.max(
-                (
-                  day.activeMilliseconds /
-                  maximum
-                ) *
-                  100,
-                3,
-              )
-            : 2;
-
-        bar.style.height =
-          percentage +
-          "%";
-
-        barArea.appendChild(
-          bar
-        );
-
-        const label =
-          document.createElement(
-            "div"
-          );
-
-        label.className =
-          "activity-date-label";
-
-        if (
-          shouldShowDateLabel(
-            daily,
-            index,
-          )
-        ) {
-          label.textContent =
-            formatChartDate(
-              day.date,
-              daily.length,
+      daily.forEach(
+        (
+          point,
+          index
+        ) => {
+          const column =
+            document.createElement(
+              "div"
             );
-        }
 
-        column.append(
-          barArea,
-          label,
-        );
+          column.className =
+            "activity-column";
 
-        activityChart.appendChild(
-          column
-        );
-      }
-    }
+          const area =
+            document.createElement(
+              "div"
+            );
 
-    function shouldShowDateLabel(
-      daily,
-      index
-    ) {
-      const length =
-        daily.length;
+          area.className =
+            "activity-bar-area";
 
-      if (
-        length <= 7
-      ) {
-        return true;
-      }
+          const bar =
+            document.createElement(
+              "div"
+            );
 
-      if (
-        length <= 31
-      ) {
-        return (
-          index === 0 ||
-          index ===
-            length - 1 ||
-          index % 7 === 0
-        );
-      }
+          bar.className =
+            "activity-bar";
 
-      if (
-        index === 0 ||
-        index ===
-          length - 1
-      ) {
-        return true;
-      }
+          if (
+            point.activeMilliseconds ===
+            0
+          ) {
+            bar.classList.add(
+              "zero"
+            );
+          }
 
-      const current =
-        parseLocalDate(
-          daily[index].date
-        );
+          const percentage =
+            Math.max(
+              point.activeMilliseconds > 0
+                ? 4
+                : 2,
+              (
+                point.activeMilliseconds /
+                max
+              ) * 100
+            );
 
-      const previous =
-        parseLocalDate(
-          daily[
-            index - 1
-          ].date
-        );
+          bar.style.height =
+            percentage + "%";
 
-      return (
-        current.getMonth() !==
-        previous.getMonth()
+          area.appendChild(
+            bar
+          );
+
+          const label =
+            document.createElement(
+              "div"
+            );
+
+          label.className =
+            "activity-date-label";
+
+          const showLabel =
+            daily.length <= 14 ||
+            index === 0 ||
+            index ===
+              daily.length - 1 ||
+            index %
+              Math.ceil(
+                daily.length / 6
+              ) ===
+              0;
+
+          label.textContent =
+            showLabel
+              ? formatShortDate(
+                  point.date
+                )
+              : "";
+
+          column.append(
+            area,
+            label
+          );
+
+          attachTooltip(
+            column,
+            () =>
+              formatDate(
+                point.date
+              ) +
+              "\\n" +
+              formatDuration(
+                point.activeMilliseconds
+              )
+          );
+
+          activityChart.appendChild(
+            column
+          );
+        },
       );
     }
 
-    function renderRanking(
-      container,
-      items,
-      mode
+    function renderBreakdown(
+      selected
     ) {
-      container.replaceChildren();
+      ranking.replaceChildren();
+
+      const entries =
+        selected[
+          currentBreakdown
+        ] ?? [];
+
+      const visible =
+        entries.slice(
+          0,
+          5
+        );
 
       if (
-        !items ||
-        items.length === 0
+        entries.length ===
+        0
       ) {
-        const empty =
-          document.createElement(
-            "div"
-          );
+        breakdownContext.textContent =
+          "No activity";
 
-        empty.className =
-          "empty-state";
-
-        if (
-          mode ===
-          "languages"
-        ) {
-          empty.textContent =
-            "No language activity recorded.";
-        } else if (
-          mode ===
-          "files"
-        ) {
-          empty.textContent =
-            "No file activity recorded.";
-        } else {
-          empty.textContent =
-            "No project activity recorded.";
-        }
-
-        container.appendChild(
-          empty
-        );
+        ranking.innerHTML =
+          '<div class="empty-state">No activity</div>';
 
         return;
       }
 
+      breakdownContext.textContent =
+        entries.length > 5
+          ? "Top 5 of " +
+            entries.length
+          : entries.length +
+            (
+              entries.length === 1
+                ? " entry"
+                : " entries"
+            );
+
       for (
-        const item
-        of items.slice(
-          0,
-          5,
-        )
+        const entry
+        of visible
       ) {
-        const wrapper =
+        const item =
           document.createElement(
             "div"
           );
 
-        wrapper.className =
+        item.className =
           "ranking-item";
 
+        const isFile =
+          currentBreakdown ===
+          "files";
+
         if (
-          mode ===
-          "files"
+          isFile
         ) {
-          wrapper.classList.add(
+          item.classList.add(
             "clickable"
           );
 
-          wrapper.tabIndex =
+          item.tabIndex =
             0;
 
-          wrapper.setAttribute(
+          item.setAttribute(
             "role",
-            "button",
-          );
-
-          wrapper.setAttribute(
-            "aria-label",
-            "Open " +
-              getFileName(
-                item.name
-              ),
-          );
-
-          wrapper.addEventListener(
-            "click",
-            () => {
-              openTrackedFile(
-                item.name
-              );
-            },
-          );
-
-          wrapper.addEventListener(
-            "keydown",
-            (event) => {
-              if (
-                event.key ===
-                  "Enter" ||
-                event.key ===
-                  " "
-              ) {
-                event.preventDefault();
-
-                openTrackedFile(
-                  item.name
-                );
-              }
-            },
+            "button"
           );
         }
 
@@ -2439,70 +2079,22 @@ export class StatisticsDashboardProvider
 
         const name =
           document.createElement(
-            "span"
+            "div"
           );
 
         name.className =
           "ranking-name";
 
-        if (
-          mode ===
-          "languages"
-        ) {
-          name.textContent =
-            formatLanguageName(
-              item.name
-            );
-        } else if (
-          mode ===
-          "files"
-        ) {
-          name.textContent =
-            getFileName(
-              item.name
-            );
-        } else {
-          name.textContent =
-            item.name;
-        }
-
-        const tooltipLines =
-          [
-            mode ===
-            "languages"
-              ? formatLanguageName(
-                  item.name
-                )
-              : item.name,
-
-            formatDuration(
-              item.activeMilliseconds
-            ) +
-              " • " +
-              formatPercentage(
-                item.percentage
-              ),
-          ];
-
-        if (
-          mode ===
-          "files"
-        ) {
-          tooltipLines.push(
-            "Click to open file"
-          );
-        }
-
-        attachTooltip(
-          wrapper,
-          tooltipLines.join(
-            "\\n"
-          ),
-        );
+        name.textContent =
+          isFile
+            ? fileName(
+                entry.name
+              )
+            : entry.name;
 
         const value =
           document.createElement(
-            "span"
+            "div"
           );
 
         value.className =
@@ -2510,17 +2102,12 @@ export class StatisticsDashboardProvider
 
         value.textContent =
           formatDuration(
-            item.activeMilliseconds
+            entry.activeMilliseconds
           ) +
           " • " +
           formatPercentage(
-            item.percentage
+            entry.percentage
           );
-
-        header.append(
-          name,
-          value,
-        );
 
         const progress =
           document.createElement(
@@ -2539,12 +2126,12 @@ export class StatisticsDashboardProvider
           "progress-fill";
 
         fill.style.width =
-          Math.min(
-            Math.max(
-              item.percentage,
-              0,
-            ),
-            100,
+          Math.max(
+            0,
+            Math.min(
+              100,
+              entry.percentage
+            )
           ) +
           "%";
 
@@ -2552,65 +2139,106 @@ export class StatisticsDashboardProvider
           fill
         );
 
-        wrapper.append(
-          header,
-          progress,
+        header.append(
+          name,
+          value
         );
 
-        container.appendChild(
-          wrapper
+        item.append(
+          header,
+          progress
+        );
+
+        attachTooltip(
+          item,
+          () =>
+            (
+              isFile
+                ? entry.name
+                : entry.name
+            ) +
+            "\\n" +
+            formatDuration(
+              entry.activeMilliseconds
+            ) +
+            " • " +
+            formatPercentage(
+              entry.percentage
+            )
+        );
+
+        if (
+          isFile
+        ) {
+          const open =
+            () => {
+              vscode.postMessage({
+                type:
+                  "openFile",
+
+                path:
+                  entry.name,
+              });
+            };
+
+          item.addEventListener(
+            "click",
+            open
+          );
+
+          item.addEventListener(
+            "keydown",
+            (event) => {
+              if (
+                event.key ===
+                  "Enter" ||
+                event.key ===
+                  " "
+              ) {
+                event.preventDefault();
+                open();
+              }
+            },
+          );
+        }
+
+        ranking.appendChild(
+          item
         );
       }
     }
 
-    function openTrackedFile(
-      filePath
-    ) {
-      vscode.postMessage({
-        type:
-          "openFile",
-
-        path:
-          filePath,
-      });
-    }
-
     function renderHeatmap(
-      daily
+      points
     ) {
-      const previousScrollLeft =
-        heatmapScroll.scrollLeft;
-
       heatmap.replaceChildren();
 
       if (
-        !daily ||
-        daily.length === 0
+        !points ||
+        points.length === 0
       ) {
+        heatmap.innerHTML =
+          '<div class="empty-state">No activity</div>';
+
         return;
       }
 
       const firstDate =
-        parseLocalDate(
-          daily[0].date
+        parseDateKey(
+          points[0].date
         );
 
-      const leadingEmptyCells =
-        (
-          firstDate.getDay() +
-          6
-        ) %
-        7;
+      const leadingDays =
+        firstDate.getDay();
 
       for (
         let index = 0;
-        index <
-          leadingEmptyCells;
+        index < leadingDays;
         index += 1
       ) {
         const placeholder =
           document.createElement(
-            "span"
+            "div"
           );
 
         placeholder.className =
@@ -2621,89 +2249,69 @@ export class StatisticsDashboardProvider
         );
       }
 
-      const maximum =
+      const positiveValues =
+        points
+          .map(
+            (point) =>
+              point.activeMilliseconds
+          )
+          .filter(
+            (value) =>
+              value > 0
+          );
+
+      const max =
         Math.max(
-          ...daily.map(
-            (day) =>
-              day.activeMilliseconds
-          ),
-          1,
+          ...positiveValues,
+          1
         );
 
       for (
-        const day
-        of daily
+        const point
+        of points
       ) {
         const cell =
           document.createElement(
-            "span"
-          );
-
-        const level =
-          getHeatmapLevel(
-            day.activeMilliseconds,
-            maximum,
+            "div"
           );
 
         cell.className =
           "heatmap-cell level-" +
-          level;
+          heatLevel(
+            point.activeMilliseconds,
+            max
+          );
 
         attachTooltip(
           cell,
-          [
-            formatFullDate(
-              day.date
-            ),
-
-            day.activeMilliseconds >
-            0
-              ? formatDuration(
-                  day.activeMilliseconds
-                ) +
-                " coding"
-              : "No coding activity",
-          ].join(
-            "\\n"
-          ),
+          () =>
+            formatDate(
+              point.date
+            ) +
+            "\\n" +
+            formatDuration(
+              point.activeMilliseconds
+            )
         );
 
         heatmap.appendChild(
           cell
         );
       }
-
-      requestAnimationFrame(
-        () => {
-          if (
-            heatmapInitialized
-          ) {
-            heatmapScroll.scrollLeft =
-              previousScrollLeft;
-          } else {
-            heatmapScroll.scrollLeft =
-              heatmapScroll.scrollWidth;
-
-            heatmapInitialized =
-              true;
-          }
-        },
-      );
     }
 
-    function getHeatmapLevel(
-      milliseconds,
-      maximum
+    function heatLevel(
+      value,
+      max
     ) {
       if (
-        milliseconds <= 0
+        value <= 0
       ) {
         return 0;
       }
 
       const ratio =
-        milliseconds /
-        maximum;
+        value / max;
 
       if (
         ratio <= 0.25
@@ -2728,377 +2336,155 @@ export class StatisticsDashboardProvider
 
     function attachTooltip(
       element,
-      content
+      getText
     ) {
-      element.dataset.tooltip =
-        content;
-
       element.addEventListener(
         "mouseenter",
         (event) => {
-          showTooltip(
-            element.dataset.tooltip,
-            event.clientX,
-            event.clientY,
+          tooltip.textContent =
+            getText();
+
+          tooltip.classList.add(
+            "visible"
+          );
+
+          positionTooltip(
+            event
           );
         },
       );
 
       element.addEventListener(
         "mousemove",
-        (event) => {
-          positionTooltip(
-            event.clientX,
-            event.clientY,
-          );
-        },
+        positionTooltip,
       );
 
       element.addEventListener(
         "mouseleave",
         () => {
-          hideTooltip();
-        },
-      );
-
-      element.addEventListener(
-        "focus",
-        () => {
-          const rectangle =
-            element
-              .getBoundingClientRect();
-
-          showTooltip(
-            element.dataset.tooltip,
-            rectangle.left +
-              rectangle.width /
-                2,
-            rectangle.top,
+          tooltip.classList.remove(
+            "visible"
           );
         },
-      );
-
-      element.addEventListener(
-        "blur",
-        () => {
-          hideTooltip();
-        },
-      );
-    }
-
-    function showTooltip(
-      content,
-      x,
-      y
-    ) {
-      if (
-        !content
-      ) {
-        return;
-      }
-
-      tooltip.textContent =
-        content;
-
-      tooltip.style.whiteSpace =
-        "pre-line";
-
-      tooltip.classList.add(
-        "visible"
-      );
-
-      positionTooltip(
-        x,
-        y,
       );
     }
 
     function positionTooltip(
-      x,
-      y
+      event
     ) {
       const offset =
         12;
 
-      const margin =
-        8;
+      const width =
+        tooltip.offsetWidth;
 
-      const rectangle =
-        tooltip
-          .getBoundingClientRect();
+      const height =
+        tooltip.offsetHeight;
 
       let left =
-        x +
+        event.clientX +
         offset;
 
       let top =
-        y +
+        event.clientY +
         offset;
 
       if (
-        left +
-          rectangle.width +
-          margin >
-        window.innerWidth
+        left + width >
+        window.innerWidth - 4
       ) {
         left =
-          x -
-          rectangle.width -
+          event.clientX -
+          width -
           offset;
       }
 
       if (
-        top +
-          rectangle.height +
-          margin >
-        window.innerHeight
+        top + height >
+        window.innerHeight - 4
       ) {
         top =
-          y -
-          rectangle.height -
+          event.clientY -
+          height -
           offset;
       }
 
       tooltip.style.left =
         Math.max(
-          margin,
-          left,
+          4,
+          left
         ) +
         "px";
 
       tooltip.style.top =
         Math.max(
-          margin,
-          top,
+          4,
+          top
         ) +
         "px";
     }
 
-    function hideTooltip() {
-      tooltip.classList.remove(
-        "visible"
-      );
-    }
-
-    function formatRangeContext(
-      statistics
+    function describeRange(
+      selected
     ) {
       if (
-        !statistics.startDate ||
-        !statistics.endDate
+        selected.range ===
+        "today"
       ) {
-        return "";
+        return "Today";
       }
 
       if (
-        statistics.startDate ===
-        statistics.endDate
+        selected.range ===
+        "7days"
       ) {
-        return formatFullDate(
-          statistics.startDate
-        );
-      }
-
-      return (
-        formatShortDate(
-          statistics.startDate
-        ) +
-        " – " +
-        formatShortDate(
-          statistics.endDate
-        )
-      );
-    }
-
-    function formatStreakRange(
-      startDate,
-      endDate
-    ) {
-      if (
-        !startDate ||
-        !endDate
-      ) {
-        return "No active streak";
+        return "Last 7 days";
       }
 
       if (
-        startDate ===
-        endDate
+        selected.range ===
+        "30days"
       ) {
-        return formatShortDate(
-          startDate
-        );
+        return "Last 30 days";
       }
 
-      return (
-        formatShortDate(
-          startDate
-        ) +
-        " – " +
-        formatShortDate(
-          endDate
-        )
-      );
-    }
-
-    function formatDays(
-      days
-    ) {
-      return (
-        days +
-        (
-          days === 1
-            ? " day"
-            : " days"
-        )
-      );
-    }
-
-    function formatChartDate(
-      date,
-      length
-    ) {
-      const value =
-        parseLocalDate(
-          date
-        );
-
-      if (
-        length <= 7
-      ) {
-        return value
-          .toLocaleDateString(
-            undefined,
-            {
-              weekday:
-                "short",
-            },
-          );
-      }
-
-      if (
-        length <= 31
-      ) {
-        return value
-          .toLocaleDateString(
-            undefined,
-            {
-              month:
-                "short",
-
-              day:
-                "numeric",
-            },
-          );
-      }
-
-      return value
-        .toLocaleDateString(
-          undefined,
-          {
-            month:
-              "short",
-          },
-        );
-    }
-
-    function formatFullDate(
-      date
-    ) {
-      return parseLocalDate(
-        date
-      ).toLocaleDateString(
-        undefined,
-        {
-          weekday:
-            "long",
-
-          year:
-            "numeric",
-
-          month:
-            "long",
-
-          day:
-            "numeric",
-        },
-      );
-    }
-
-    function formatShortDate(
-      date
-    ) {
-      return parseLocalDate(
-        date
-      ).toLocaleDateString(
-        undefined,
-        {
-          year:
-            "numeric",
-
-          month:
-            "short",
-
-          day:
-            "numeric",
-        },
-      );
-    }
-
-    function parseLocalDate(
-      date
-    ) {
-      const parts =
-        date
-          .split("-")
-          .map(
-            Number,
-          );
-
-      return new Date(
-        parts[0],
-        parts[1] - 1,
-        parts[2],
-      );
-    }
-
-    function getFileName(
-      filePath
-    ) {
-      const normalized =
-        filePath.replace(
-          /\\\\/g,
-          "/",
-        );
-
-      const parts =
-        normalized.split(
-          "/"
-        );
-
-      return (
-        parts.at(-1) ??
-        filePath
-      );
+      return selected.startDate
+        ? formatDate(
+            selected.startDate
+          ) +
+          " – " +
+          formatDate(
+            selected.endDate
+          )
+        : "All time";
     }
 
     function formatDuration(
       milliseconds
     ) {
-      const totalMinutes =
+      const totalSeconds =
         Math.floor(
           milliseconds /
-            60000
+          1000
         );
 
       const hours =
         Math.floor(
-          totalMinutes /
-            60
+          totalSeconds /
+          3600
         );
 
       const minutes =
-        totalMinutes %
+        Math.floor(
+          (
+            totalSeconds %
+            3600
+          ) /
+          60
+        );
+
+      const seconds =
+        totalSeconds %
         60;
 
       if (
@@ -3113,19 +2499,15 @@ export class StatisticsDashboardProvider
       }
 
       if (
-        totalMinutes > 0
+        minutes > 0
       ) {
         return (
-          totalMinutes +
-          "m"
+          minutes +
+          "m " +
+          seconds +
+          "s"
         );
       }
-
-      const seconds =
-        Math.floor(
-          milliseconds /
-            1000
-        );
 
       return (
         seconds +
@@ -3134,111 +2516,142 @@ export class StatisticsDashboardProvider
     }
 
     function formatPercentage(
-      percentage
+      value
     ) {
       if (
-        percentage > 0 &&
-        percentage < 1
+        value < 1 &&
+        value > 0
       ) {
         return "<1%";
       }
 
       return (
         Math.round(
-          percentage
+          value
         ) +
         "%"
       );
     }
 
-    function formatLanguageName(
-      languageId
+    function formatDayCount(
+      value
     ) {
-      const known = {
-        javascript:
-          "JavaScript",
-
-        javascriptreact:
-          "JavaScript React",
-
-        typescript:
-          "TypeScript",
-
-        typescriptreact:
-          "TypeScript React",
-
-        json:
-          "JSON",
-
-        jsonc:
-          "JSON with Comments",
-
-        markdown:
-          "Markdown",
-
-        html:
-          "HTML",
-
-        css:
-          "CSS",
-
-        scss:
-          "SCSS",
-
-        less:
-          "Less",
-
-        python:
-          "Python",
-
-        go:
-          "Go",
-
-        rust:
-          "Rust",
-
-        shellscript:
-          "Shell Script",
-
-        powershell:
-          "PowerShell",
-
-        yaml:
-          "YAML",
-
-        dockerfile:
-          "Dockerfile",
-
-        sql:
-          "SQL",
-
-        php:
-          "PHP",
-
-        java:
-          "Java",
-
-        c:
-          "C",
-
-        cpp:
-          "C++",
-
-        csharp:
-          "C#",
-      };
-
       return (
-        known[
-          languageId
-        ] ??
-        languageId
+        value +
+        (
+          value === 1
+            ? " day"
+            : " days"
+        )
       );
     }
 
-    updateRangeButtons();
+    function formatDateRange(
+      start,
+      end
+    ) {
+      if (
+        !start ||
+        !end
+      ) {
+        return "";
+      }
 
-    updateBreakdownButtons();
+      if (
+        start === end
+      ) {
+        return formatDate(
+          start
+        );
+      }
+
+      return (
+        formatDate(
+          start
+        ) +
+        " – " +
+        formatDate(
+          end
+        )
+      );
+    }
+
+    function formatDate(
+      date
+    ) {
+      return parseDateKey(
+        date
+      ).toLocaleDateString(
+        undefined,
+        {
+          month:
+            "short",
+
+          day:
+            "numeric",
+
+          year:
+            "numeric",
+        }
+      );
+    }
+
+    function formatShortDate(
+      date
+    ) {
+      return parseDateKey(
+        date
+      ).toLocaleDateString(
+        undefined,
+        {
+          month:
+            "short",
+
+          day:
+            "numeric",
+        }
+      );
+    }
+
+    function parseDateKey(
+      date
+    ) {
+      const [
+        year,
+        month,
+        day
+      ] =
+        date
+          .split(
+            "-"
+          )
+          .map(
+            Number
+          );
+
+      return new Date(
+        year,
+        month - 1,
+        day
+      );
+    }
+
+    function fileName(
+      value
+    ) {
+      return value
+        .replace(
+          /\\\\/g,
+          "/"
+        )
+        .split(
+          "/"
+        )
+        .at(
+          -1
+        ) ??
+        value;
+    }
 
     vscode.postMessage({
       type:
