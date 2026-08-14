@@ -6,14 +6,14 @@ export interface CodingSession {
   id: string;
 
   startedAt: string;
-  endedAt: string | undefined;
+  endedAt?: string;
   lastActivityAt: string;
 
   activeMilliseconds: number;
 
-  workspaceName: string | undefined;
-  projectName: string | undefined;
-  remoteName: string | undefined;
+  workspaceName?: string;
+  projectName?: string;
+  remoteName?: string;
 
   languages: Record<
     string,
