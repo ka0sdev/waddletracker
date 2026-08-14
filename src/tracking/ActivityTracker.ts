@@ -271,6 +271,119 @@ export class ActivityTracker
     };
   }
 
+  public async replaceState(
+    importedState:
+      TrackerState,
+  ): Promise<void> {
+    const now =
+      Date.now();
+
+    const wasActive =
+      this.isActive();
+
+    /*
+     * Discard the current live session and
+     * replace the contents of the existing
+     * TrackerState object. SessionManager owns
+     * a reference to this object, so we must
+     * mutate it instead of assigning a new
+     * TrackerState instance.
+     */
+    this.sessionManager
+      .reset();
+
+    this.state.version =
+      importedState.version;
+
+    this.state.daily =
+      Object.fromEntries(
+        Object.entries(
+          importedState.daily,
+        ).map(
+          (
+            [
+              date,
+              day,
+            ],
+          ) => [
+            date,
+            {
+              ...day,
+
+              projects:
+                this.cloneDimensionStats(
+                  day.projects,
+                ),
+
+              languages:
+                this.cloneDimensionStats(
+                  day.languages,
+                ),
+
+              files:
+                this.cloneDimensionStats(
+                  day.files,
+                ),
+            },
+          ],
+        ),
+      );
+
+    this.state.sessions.push(
+      ...importedState.sessions.map(
+        (session) => ({
+          ...session,
+
+          endedAt:
+            session.endedAt ??
+            session.lastActivityAt,
+
+          languages:
+            this.cloneDimensionStats(
+              session.languages,
+            ),
+
+          files:
+            this.cloneDimensionStats(
+              session.files,
+            ),
+        }),
+      ),
+    );
+
+    this.lastTickAt =
+      now;
+
+    if (
+      wasActive &&
+      !this.isCurrentContextExcluded()
+    ) {
+      this.lastActivityAt =
+        now;
+
+      this.sessionManager
+        .startSession(
+          this.currentContext,
+          now,
+        );
+
+      this.sessionManager
+        .markActivity(
+          now,
+        );
+    } else {
+      this.lastActivityAt =
+        undefined;
+    }
+
+    this.dirty =
+      true;
+
+    await this.flush();
+
+    this.onDidUpdateEmitter.fire();
+  }
+
   public async resetStatistics():
     Promise<void> {
     const now =
